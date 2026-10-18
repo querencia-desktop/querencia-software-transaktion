@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["qs_transaktion", "qs-cli"]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.92"
+license = "GPL-3.0-or-later"
+publish = false
+
+[profile.release]
+lto = true
+codegen-units = 1

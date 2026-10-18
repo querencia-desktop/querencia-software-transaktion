@@ -1,0 +1,28 @@
+[package]
+name = "qs-cli"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Kommandozeilenwerkzeug für Querencia Software: Suche, Details, Aktualisierungen, Simulation, Probeläufe gegen Attrappe und Prüfgerüst"
+
+[[bin]]
+name = "qs-cli"
+path = "src/main.rs"
+
+[dependencies]
+qs_typen = { path = "../../querencia-software-paketkit/qs_typen" }
+qs_transaktion = { path = "../qs_transaktion", features = ["tokio"] }
+tokio = { version = "1", features = ["rt", "time"] }
+
+[features]
+default = []
+# INTEGRATION: echter PackageKit über SW-1 (nur lesende Befehle):
+#   qs_paketkit = { path = "../../querencia-software-paketkit/qs_paketkit", optional = true }
+#   echt = ["dep:qs_paketkit"]
+echt = []
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"

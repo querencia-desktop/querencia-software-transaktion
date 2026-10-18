@@ -1,0 +1,31 @@
+[package]
+name = "qs_transaktion"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Querencia Software: Transaktions-Zustandsmaschine, Fehlerabbildung, Wiederanbindung, Protokoll (SW-4)"
+
+[dependencies]
+# Gemeinsame Typen und Traits von SW-1 (verbindlich, SCHNITTSTELLEN.md).
+qs_typen = { path = "../../querencia-software-paketkit/qs_typen" }
+async-trait = "0.1"
+futures = "0.3"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+tokio = { version = "1", features = ["rt", "time"], optional = true }
+glib = { version = "0.22", optional = true }
+
+[features]
+default = []
+# Laufzeit für Kommandozeile und Tests (tokio LocalSet).
+tokio = ["dep:tokio"]
+# Laufzeit für die GTK-Oberfläche (glib::MainContext).
+glib = ["dep:glib"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "time", "test-util"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
