@@ -27,3 +27,10 @@ paketkit = ["dep:qs_paketkit"]
 [lints.rust]
 unsafe_code = "forbid"
 unused_must_use = "deny"
+
+[dev-dependencies]
+glib = "0.22"
+
+[[test]]
+name = "pruefgeruest"
+required-features = ["paketkit"]

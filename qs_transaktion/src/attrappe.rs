@@ -51,6 +51,7 @@ struct Innen {
     braucht_neustart: bool,
     haengen: bool,
     abbruch_ignorieren: bool,
+    abbruch_fehler: Option<Fehler>,
     skript: Option<Vec<Fortschritt>>,
     laufende: VecDeque<Result<Vec<String>, Fehler>>,
     laufende_dauerhaft: Result<Vec<String>, Fehler>,
@@ -104,6 +105,7 @@ impl AttrappeQuelle {
                 braucht_neustart: false,
                 haengen: false,
                 abbruch_ignorieren: false,
+                abbruch_fehler: None,
                 skript: None,
                 laufende: VecDeque::new(),
                 laufende_dauerhaft: Ok(Vec::new()),
@@ -233,6 +235,13 @@ impl AttrappeQuelle {
     /// `abbrechen()` wird ignoriert (Quelle bestätigt den Abbruch nie).
     pub fn abbruch_ignorieren(self) -> Self {
         self.innen.borrow_mut().abbruch_ignorieren = true;
+        self
+    }
+
+    /// Nach `abbrechen()` meldet die Quelle nicht `Abgebrochen`, sondern diesen
+    /// Fehler (so verhält sich SW-1s Prüf-Attrappe bei belegter Sperre).
+    pub fn abbruch_meldet_fehler(self, fehler: Fehler) -> Self {
+        self.innen.borrow_mut().abbruch_fehler = Some(fehler);
         self
     }
 
@@ -479,6 +488,11 @@ impl Paketquelle for AttrappeQuelle {
         let innen = self.innen.clone();
         let laufzeit = self.laufzeit.clone();
         let skript = innen.borrow().skript.clone();
+        let abbruch_fehler = innen.borrow().abbruch_fehler.clone();
+        let abbruch_meldung = move || match &abbruch_fehler {
+            Some(f) => Fortschritt::Fehler(f.clone()),
+            None => Fortschritt::Abgebrochen,
+        };
         let (fehler, schritte, dauer, fehlerschritt, wirkung_vor_fehler, neustart, haengen, ignorieren) = {
             let mut i = innen.borrow_mut();
             i.aufrufe.ausfuehren += 1;
@@ -505,7 +519,7 @@ impl Paketquelle for AttrappeQuelle {
                 for f_meldung in folge {
                     laufzeit.schlafen(dauer).await;
                     if f.get() && !ignorieren {
-                        melden(Fortschritt::Abgebrochen);
+                        melden(abbruch_meldung());
                         return;
                     }
                     if f_meldung == Fortschritt::Fertig {
@@ -519,7 +533,7 @@ impl Paketquelle for AttrappeQuelle {
                 loop {
                     laufzeit.schlafen(Duration::from_secs(1)).await;
                     if f.get() && !ignorieren {
-                        melden(Fortschritt::Abgebrochen);
+                        melden(abbruch_meldung());
                         return;
                     }
                 }
@@ -535,7 +549,7 @@ impl Paketquelle for AttrappeQuelle {
             for s in 1..=schritte {
                 laufzeit.schlafen(dauer).await;
                 if f.get() && !ignorieren {
-                    melden(Fortschritt::Abgebrochen);
+                    melden(abbruch_meldung());
                     return;
                 }
                 melden(Fortschritt::Status(

@@ -903,3 +903,62 @@ fn t44_protokoll_schreibt_keine_prozentschritte() {
         assert!(protokoll.zeilen().len() <= 10, "{:#?}", protokoll.zeilen());
     })
 }
+
+#[test]
+fn t45_abbruch_bleibt_gueltig_wenn_quelle_danach_sperre_meldet() {
+    // Befund aus dem Prüfgerüst (SW-1): nach Cancel meldet die Quelle noch
+    // `SperreBelegt` statt `Abgebrochen`. Das darf keine neue Wiederholung auslösen.
+    lokal!(async {
+        let m = monitor();
+        let q = Rc::new(
+            quelle()
+                .mit_schritten(5, Duration::from_secs(1))
+                .abbruch_meldet_fehler(Fehler::SperreBelegt("apt".into())),
+        );
+        let (g, l) = starte(&m, &q, auftrag(Vorgang::Installieren, "vlc"));
+        warte_bis(&l, |z| matches!(z, Zustand::Laeuft { prozent: Some(_), .. })).await;
+        g.abbrechen();
+        assert_eq!(warte_ende(&l).await, Zustand::Abgebrochen);
+        assert_eq!(q.aufrufe().ausfuehren, 1, "keine Wiederholung nach Abbruch");
+        assert!(!hat(&l, ist_sperre));
+    })
+}
+
+#[test]
+fn t46_abbruch_bleibt_gueltig_wenn_quelle_danach_anderen_fehler_meldet() {
+    lokal!(async {
+        let m = monitor();
+        let q = Rc::new(
+            quelle()
+                .mit_schritten(5, Duration::from_secs(1))
+                .abbruch_meldet_fehler(Fehler::DaemonWeg),
+        );
+        let (g, l) = starte(&m, &q, auftrag(Vorgang::Installieren, "vlc"));
+        warte_bis(&l, ist_laeuft).await;
+        g.abbrechen();
+        assert_eq!(warte_ende(&l).await, Zustand::Abgebrochen);
+        assert_eq!(q.aufrufe().ausfuehren, 1, "keine Wiederanbindung nach Abbruch");
+        assert_eq!(q.aufrufe().laufende_transaktionen, 0);
+    })
+}
+
+#[test]
+fn t47_sperre_seit_bleibt_ueber_wiederholungen_stabil() {
+    lokal!(async {
+        let m = monitor();
+        let s = Fehler::SperreBelegt(String::new());
+        let q = Rc::new(quelle().fehler_bei_ausfuehren(vec![s.clone(), s.clone(), s]).mit_fehlerschritt(0));
+        let (_g, l) = starte(&m, &q, auftrag(Vorgang::Installieren, "vlc"));
+        assert_eq!(warte_ende(&l).await, Zustand::Fertig);
+        let seits: Vec<std::time::Instant> = l
+            .borrow()
+            .iter()
+            .filter_map(|z| match z {
+                Zustand::WartetAufSperre { seit } => Some(*seit),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(seits.len(), 3);
+        assert!(seits.iter().all(|t| *t == seits[0]), "{seits:?}");
+    })
+}

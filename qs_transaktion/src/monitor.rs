@@ -234,6 +234,8 @@ impl Transaktionsmonitor for Monitor {
             bestaetigt: Cell::new(false),
             letzter_schluessel: RefCell::new(None),
             letzter_protokolliert: RefCell::new(None),
+            abbruch_gewuenscht: Cell::new(false),
+            sperre_seit: Cell::new(None),
         };
         innen
             .laufzeit
@@ -260,6 +262,8 @@ impl Transaktionsmonitor for Monitor {
             bestaetigt: Cell::new(false),
             letzter_schluessel: RefCell::new(None),
             letzter_protokolliert: RefCell::new(None),
+            abbruch_gewuenscht: Cell::new(false),
+            sperre_seit: Cell::new(None),
         };
         innen
             .laufzeit
@@ -318,6 +322,12 @@ struct Lauf {
     bestaetigt: Cell<bool>,
     letzter_schluessel: RefCell<Option<String>>,
     letzter_protokolliert: RefCell<Option<Zustand>>,
+    /// Abbruch wurde angefordert. Gilt für den ganzen Lauf: Meldet die Quelle danach
+    /// noch einen Fehler (z. B. `SperreBelegt`), wird nicht wiederholt, sondern
+    /// `Abgebrochen` gemeldet. Nur ein `Fertig` der Quelle bleibt `Fertig`.
+    abbruch_gewuenscht: Cell<bool>,
+    /// Beginn des aktuellen Wartens auf die Sperre (stabil über Wiederholungen).
+    sperre_seit: Cell<Option<Instant>>,
 }
 
 /// Räumt beim Verlassen des Ablaufs auf, egal auf welchem Weg.
@@ -353,6 +363,18 @@ impl Lauf {
         (self.melden)(zustand);
     }
 
+    /// Beginn des laufenden Wartens auf die Sperre; beim ersten Aufruf jetzt.
+    fn sperre_beginn(&self) -> Instant {
+        match self.sperre_seit.get() {
+            Some(t) => t,
+            None => {
+                let t = Instant::now();
+                self.sperre_seit.set(Some(t));
+                t
+            }
+        }
+    }
+
     fn log(&self, text: &str) {
         self.innen.protokoll.schreiben(self.id, text);
     }
@@ -367,8 +389,10 @@ impl Lauf {
     fn naechster_befehl(&self) -> impl std::future::Future<Output = Option<Befehl>> + Unpin + '_ {
         futures::future::poll_fn(move |cx| {
             let r = self.befehle.borrow_mut().poll_next_unpin(cx);
-            if let std::task::Poll::Ready(Some(Befehl::Bestaetigen)) = r {
-                self.bestaetigt.set(true);
+            match r {
+                std::task::Poll::Ready(Some(Befehl::Bestaetigen)) => self.bestaetigt.set(true),
+                std::task::Poll::Ready(Some(Befehl::Abbrechen)) => self.abbruch_gewuenscht.set(true),
+                _ => {}
             }
             r
         })
@@ -444,6 +468,10 @@ impl Lauf {
                     self.log("Abbruch während der Simulation");
                     return Err(Zustand::Abgebrochen);
                 }
+                Some(_) if self.abbruch_gewuenscht.get() => {
+                    self.log("Abbruch während der Simulation");
+                    return Err(Zustand::Abgebrochen);
+                }
                 Some(Ok(sim)) => return Ok(sim),
                 Some(Err(Fehler::SperreBelegt(wer))) => match self.sperre_warten(&mut sperre).await {
                     Sperrausgang::Weiter => continue,
@@ -490,7 +518,17 @@ impl Lauf {
         let mut sperre = Sperre::neu(&self.innen.einstellungen);
         let mut wieder_angebunden = false;
         loop {
-            match self.ein_versuch(vorgang, ids).await {
+            let ausgang = self.ein_versuch(vorgang, ids).await;
+            if self.abbruch_gewuenscht.get() && !matches!(ausgang, Ausgang::Fertig) {
+                if let Ausgang::Fehler(f) = &ausgang {
+                    self.log(&format!(
+                        "Nach Abbruchwunsch meldet die Quelle {}; gilt als abgebrochen",
+                        fehlertexte::kurz(f)
+                    ));
+                }
+                return Zustand::Abgebrochen;
+            }
+            match ausgang {
                 Ausgang::Fertig => {
                     return Zustand::Fertig;
                 }
@@ -548,6 +586,11 @@ impl Lauf {
         let e = &self.innen.einstellungen;
         let mut wecker = self.schlafen(e.zeit_ohne_fortschritt);
         let mut abbruch_wecker = futures::future::Fuse::terminated();
+        if self.abbruch_gewuenscht.get() {
+            abbruch_angefordert = true;
+            abbruch.abbrechen();
+            abbruch_wecker = self.schlafen(e.abbruch_frist);
+        }
 
         let ausgang = loop {
             select! {
@@ -565,6 +608,9 @@ impl Lauf {
                         }
                         Some(Fortschritt::Prozent(p)) => {
                             prozent = if p > 100 { None } else { Some(p) };
+                            if prozent.is_some() {
+                                self.sperre_seit.set(None);
+                            }
                             self.melde(Zustand::Laeuft { prozent, status: zusammen(&status, &paket_info) });
                         }
                         Some(Fortschritt::Status(s)) => {
@@ -579,7 +625,8 @@ impl Lauf {
                         }
                         Some(Fortschritt::WartetAufSperre) => {
                             // Die Quelle wartet selbst (apt: „Warte auf Sperre“); nur anzeigen.
-                            self.melde(Zustand::WartetAufSperre { seit: Instant::now() });
+                            let seit = self.sperre_beginn();
+                            self.melde(Zustand::WartetAufSperre { seit });
                         }
                         Some(Fortschritt::BrauchtNeustart) => {
                             self.innen.neustart.borrow_mut().insert(self.id);
@@ -634,10 +681,14 @@ impl Lauf {
     /// Warten nach `SperreBelegt`: alle `sperre_wiederholung` erneut, bis zur
     /// Höchstdauer; `sperre_erneut_versuchen` sofort (und setzt die Uhr zurück).
     async fn sperre_warten(&self, sperre: &mut Sperre) -> Sperrausgang {
+        if self.abbruch_gewuenscht.get() {
+            return Sperrausgang::Abgebrochen;
+        }
         if sperre.versuche > 0 {
             self.log(&format!("Sperre weiterhin belegt (Versuch {})", sperre.versuche));
         }
-        self.melde(Zustand::WartetAufSperre { seit: sperre.seit });
+        let seit = self.sperre_beginn();
+        self.melde(Zustand::WartetAufSperre { seit });
         if sperre.versuche >= sperre.hoechstens {
             self.log(&format!(
                 "Sperre nach {} Versuchen weiterhin belegt → Fehlgeschlagen",
@@ -786,6 +837,9 @@ impl Lauf {
 
     /// Schläft `dauer`; `false`, wenn währenddessen abgebrochen wurde.
     async fn schlafen_oder_abbruch(&self, dauer: Duration) -> bool {
+        if self.abbruch_gewuenscht.get() {
+            return false;
+        }
         let mut wecker = self.schlafen(dauer);
         loop {
             select! {
@@ -847,7 +901,6 @@ impl Lauf {
 struct Sperre {
     versuche: u32,
     hoechstens: u32,
-    seit: Instant,
 }
 
 impl Sperre {
@@ -855,7 +908,6 @@ impl Sperre {
         Self {
             versuche: 0,
             hoechstens: e.sperre_versuche(),
-            seit: Instant::now(),
         }
     }
 }

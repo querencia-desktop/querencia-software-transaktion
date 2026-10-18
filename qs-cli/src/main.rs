@@ -39,7 +39,7 @@ Aufruf:
 Ziele (eins davon, Standard --attrappe):
   --attrappe        eingebaute Attrappe, ändert nichts am System
   --pruefgeruest    PackageKit auf dem privaten Bus aus QS_PK_BUS (Prüfgerüst von SW-1);
-                    schreibende Befehle nur mit test_*/dummy-Backend
+                    schreibende Befehle nur mit test_*/dummy/attrappe-Backend
   --echt            PackageKit auf dem Systembus, NUR lesende Befehle
 
 Befehle:
@@ -49,7 +49,7 @@ Befehle:
   simuliere installieren|entfernen|aktualisieren PAKET …
                                       zeigen, was zusätzlich geschähe
   fuehre-aus installieren|entfernen|aktualisieren PAKET …
-                                      Transaktion mit Fortschrittszeilen
+  fuehre-aus quellen-auffrischen      Transaktion mit Fortschrittszeilen
                                       (nur --attrappe oder --pruefgeruest)
   laufende                            laufende Transaktionen des Daemons beobachten
   fehlertexte [--markdown]            alle Fehlertexte der Oberfläche
@@ -259,13 +259,18 @@ async fn paketkit(ziel: Ziel, schreibend: bool) -> Result<Rc<dyn Paketquelle>, i
     };
     if ziel == Ziel::Pruefgeruest {
         // Sicherung: niemals echte Pakete ändern. Nur Test-Backends zulassen.
+        if bus.contains("/run/dbus/system_bus_socket") {
+            eprintln!("qs-cli: verweigert – {UMGEBUNG_BUS} zeigt auf den Systembus.");
+            return Err(EXIT_VERWEIGERT);
+        }
         let backend = pk.backend_name().await.unwrap_or_default();
-        let test = backend.starts_with("test_") || backend == "dummy";
+        // test_* = packagekitd-Test-Backends, attrappe = qs-pk-attrappe von SW-1.
+        let test = backend.starts_with("test_") || backend == "dummy" || backend == "attrappe";
         eprintln!("qs-cli: Prüfgerüst {bus}, Backend „{backend}“");
         if schreibend && !test {
             eprintln!(
                 "qs-cli: verweigert – das Backend „{backend}“ ist kein Test-Backend. \
-                 Schreibende Befehle laufen nur gegen test_succeed/test_fail/test_spawn/dummy."
+                 Schreibende Befehle laufen nur gegen test_*, dummy oder die Attrappe von SW-1."
             );
             return Err(EXIT_VERWEIGERT);
         }
@@ -434,8 +439,9 @@ fn vorgang_lesen(s: Option<&String>) -> Result<Vorgang, String> {
         Some("installieren") => Ok(Vorgang::Installieren),
         Some("entfernen") => Ok(Vorgang::Entfernen),
         Some("aktualisieren") => Ok(Vorgang::Aktualisieren),
+        Some("quellen-auffrischen") => Ok(Vorgang::QuellenAuffrischen),
         Some(a) => Err(format!(
-            "unbekannter Vorgang „{a}“ (installieren, entfernen, aktualisieren)"
+            "unbekannter Vorgang „{a}“ (installieren, entfernen, aktualisieren, quellen-auffrischen)"
         )),
         None => Err("Vorgang fehlt (installieren, entfernen, aktualisieren)".into()),
     }
@@ -520,7 +526,7 @@ async fn fuehre_aus(
             return EXIT_AUFRUF;
         }
     };
-    if args.len() < 2 {
+    if args.len() < 2 && vorgang != Vorgang::QuellenAuffrischen {
         eprintln!("qs-cli: fuehre-aus braucht mindestens ein Paket.");
         return EXIT_AUFRUF;
     }
