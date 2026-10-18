@@ -122,12 +122,37 @@ impl AttrappeQuelle {
             paket("inkscape", "1.4-1", "Vektorgrafik-Editor", false),
             paket("vlc", "3.0.21-1", "Multimedia-Spieler und -Streamer", false),
             paket("gedit", "48.1-1", "Texteditor für GNOME", false),
-            paket("libreoffice-writer", "4:25.2.1-1", "Textverarbeitung", false),
+            paket(
+                "libreoffice-writer",
+                "4:25.2.1-1",
+                "Textverarbeitung",
+                false,
+            ),
             paket("firefox", "128.0-1", "Webbrowser", false),
-            paket("querencia-bilder", "0.3.1", "Bildbetrachter für Querencia Desktop", true),
-            paket("querencia-editor", "0.4.0", "Texteditor für Querencia Desktop", true),
-            paket("querencia-rechner", "0.1.0", "Rechner für Querencia Desktop", true),
-            paket("querencia-desktop", "0.9.2", "Arbeitsfläche von Querencia Desktop", true),
+            paket(
+                "querencia-bilder",
+                "0.3.1",
+                "Bildbetrachter für Querencia Desktop",
+                true,
+            ),
+            paket(
+                "querencia-editor",
+                "0.4.0",
+                "Texteditor für Querencia Desktop",
+                true,
+            ),
+            paket(
+                "querencia-rechner",
+                "0.1.0",
+                "Rechner für Querencia Desktop",
+                true,
+            ),
+            paket(
+                "querencia-desktop",
+                "0.9.2",
+                "Arbeitsfläche von Querencia Desktop",
+                true,
+            ),
             paket("labwc", "0.9.8-1", "Wayland-Fensterverwalter", true),
             paket("htop", "3.3.0-4", "Interaktiver Prozessbetrachter", true),
         ]);
@@ -309,7 +334,12 @@ impl Innen {
             .iter()
             .map(|id| {
                 self.finde(id).unwrap_or_else(|| {
-                    paket(id.split(';').next().unwrap_or(id), "0", "(unbekannt)", false)
+                    paket(
+                        id.split(';').next().unwrap_or(id),
+                        "0",
+                        "(unbekannt)",
+                        false,
+                    )
                 })
             })
             .collect();
@@ -321,7 +351,12 @@ impl Innen {
                     sim.installieren = self
                         .zusatz_installieren
                         .iter()
-                        .filter(|z| !self.katalog.iter().any(|k| k.name == z.name && k.installiert))
+                        .filter(|z| {
+                            !self
+                                .katalog
+                                .iter()
+                                .any(|k| k.name == z.name && k.installiert)
+                        })
                         .cloned()
                         .collect();
                     sim.download_bytes = self.download_bytes;
@@ -356,7 +391,8 @@ impl Innen {
                     if let Some(p) = self.katalog.iter_mut().find(|p| &p.name == n) {
                         p.installiert = true;
                     } else {
-                        self.katalog.push(paket(n, "0", "(installiert über Attrappe)", true));
+                        self.katalog
+                            .push(paket(n, "0", "(installiert über Attrappe)", true));
                     }
                 }
                 for z in &self.zusatz_installieren {
@@ -493,7 +529,16 @@ impl Paketquelle for AttrappeQuelle {
             Some(f) => Fortschritt::Fehler(f.clone()),
             None => Fortschritt::Abgebrochen,
         };
-        let (fehler, schritte, dauer, fehlerschritt, wirkung_vor_fehler, neustart, haengen, ignorieren) = {
+        let (
+            fehler,
+            schritte,
+            dauer,
+            fehlerschritt,
+            wirkung_vor_fehler,
+            neustart,
+            haengen,
+            ignorieren,
+        ) = {
             let mut i = innen.borrow_mut();
             i.aufrufe.ausfuehren += 1;
             i.ausgefuehrt.push((vorgang.clone(), ids.clone()));
@@ -545,7 +590,12 @@ impl Paketquelle for AttrappeQuelle {
                 melden(Fortschritt::Fehler(fehler.clone()));
                 return;
             }
-            let texte = ["Lade herunter …", "Bereite vor …", "Richte ein …", "Räume auf …"];
+            let texte = [
+                "Lade herunter …",
+                "Bereite vor …",
+                "Richte ein …",
+                "Räume auf …",
+            ];
             for s in 1..=schritte {
                 laufzeit.schlafen(dauer).await;
                 if f.get() && !ignorieren {
@@ -561,7 +611,9 @@ impl Paketquelle for AttrappeQuelle {
                         prozent: ((s as u32) * 100 / schritte as u32) as u8,
                     });
                 }
-                melden(Fortschritt::Prozent(((s as u32) * 100 / schritte as u32) as u8));
+                melden(Fortschritt::Prozent(
+                    ((s as u32) * 100 / schritte as u32) as u8,
+                ));
                 if let Some(fehler) = &fehler {
                     if s == fehlerschritt {
                         if wirkung_vor_fehler {
@@ -606,7 +658,9 @@ impl Paketquelle for AttrappeQuelle {
         let antwort = {
             let mut i = self.innen.borrow_mut();
             i.aufrufe.laufende_transaktionen += 1;
-            i.laufende.pop_front().unwrap_or_else(|| i.laufende_dauerhaft.clone())
+            i.laufende
+                .pop_front()
+                .unwrap_or_else(|| i.laufende_dauerhaft.clone())
         };
         self.schlafen(Duration::from_millis(1)).await;
         antwort

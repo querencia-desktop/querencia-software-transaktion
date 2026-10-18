@@ -23,8 +23,8 @@ use std::time::{Duration, Instant};
 use qs_paketkit::PaketKit;
 use qs_transaktion::laufzeit::GlibLaufzeit;
 use qs_transaktion::{
-    ist_ende, ist_nachfrage, Auftrag, Einstellungen, Fehler, Laufzeit, Monitor, Paket,
-    Paketquelle, Protokoll, TransaktionsGriff, Transaktionsmonitor, Vorgang, Zustand,
+    ist_ende, ist_nachfrage, Auftrag, Einstellungen, Fehler, Laufzeit, Monitor, Paket, Paketquelle,
+    Protokoll, TransaktionsGriff, Transaktionsmonitor, Vorgang, Zustand,
 };
 
 type Liste = Rc<RefCell<Vec<Zustand>>>;
@@ -47,7 +47,8 @@ fn einstellungen() -> Einstellungen {
 /// SW-1s `ausfuehren` seine Meldungen hierher zustellt).
 fn glib_lauf<F: std::future::Future<Output = ()>>(f: F) {
     let ctx = glib::MainContext::new();
-    ctx.with_thread_default(|| ctx.block_on(f)).expect("GLib-Kontext");
+    ctx.with_thread_default(|| ctx.block_on(f))
+        .expect("GLib-Kontext");
 }
 
 /// Verbindet sich mit dem Prüfbus und prüft das Backend. `None` = Test passt
@@ -93,11 +94,20 @@ async fn paket(pk: &PaketKit, name: &str) -> Paket {
         .unwrap_or_else(|| panic!("Paket {name} fehlt im Prüfbestand"))
 }
 
-async fn starte(m: &Monitor, pk: &Rc<PaketKit>, v: Vorgang, name: &str) -> (TransaktionsGriff, Liste) {
+async fn starte(
+    m: &Monitor,
+    pk: &Rc<PaketKit>,
+    v: Vorgang,
+    name: &str,
+) -> (TransaktionsGriff, Liste) {
     let p = paket(pk, name).await;
     let (l, f) = melder();
     let g = m.starten(
-        Auftrag { vorgang: v, pakete: vec![p], anwendung: None },
+        Auftrag {
+            vorgang: v,
+            pakete: vec![p],
+            anwendung: None,
+        },
         pk.clone() as Rc<dyn Paketquelle>,
         f,
     );
@@ -110,7 +120,11 @@ async fn warte_bis(l: &Liste, frist: Duration, pred: impl Fn(&Zustand) -> bool) 
         if l.borrow().last().map(&pred).unwrap_or(false) {
             return;
         }
-        assert!(Instant::now() < ende, "Zeitüberschreitung; Zustände: {:#?}", l.borrow());
+        assert!(
+            Instant::now() < ende,
+            "Zeitüberschreitung; Zustände: {:#?}",
+            l.borrow()
+        );
         glib::timeout_future(Duration::from_millis(10)).await;
     }
 }
@@ -132,7 +146,11 @@ async fn ende(l: &Liste, g: &TransaktionsGriff, bestaetigen: bool) -> Zustand {
             }
             _ => {}
         }
-        assert!(Instant::now() < frist, "kein Ende nach 60 s: {:#?}", l.borrow());
+        assert!(
+            Instant::now() < frist,
+            "kein Ende nach 60 s: {:#?}",
+            l.borrow()
+        );
         glib::timeout_future(Duration::from_millis(10)).await;
     }
 }
@@ -149,7 +167,9 @@ fn hat(l: &Liste, pred: impl Fn(&Zustand) -> bool) -> bool {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p01_installieren_erfolg() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "gedit").await;
         assert_eq!(ende(&l, &g, true).await, Zustand::Fertig);
@@ -162,10 +182,15 @@ fn attrappe_p01_installieren_erfolg() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p02_entfernen_mit_bestaetigung() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Entfernen, "powertop").await;
-        warte_bis(&l, Duration::from_secs(10), |z| matches!(z, Zustand::WartetAufBestaetigung)).await;
+        warte_bis(&l, Duration::from_secs(10), |z| {
+            matches!(z, Zustand::WartetAufBestaetigung)
+        })
+        .await;
         assert_eq!(ende(&l, &g, true).await, Zustand::Fertig);
     })
 }
@@ -174,10 +199,15 @@ fn attrappe_p02_entfernen_mit_bestaetigung() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p03_bestaetigung_verweigert() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Entfernen, "powertop").await;
-        warte_bis(&l, Duration::from_secs(10), |z| matches!(z, Zustand::WartetAufBestaetigung)).await;
+        warte_bis(&l, Duration::from_secs(10), |z| {
+            matches!(z, Zustand::WartetAufBestaetigung)
+        })
+        .await;
         g.abbrechen();
         assert_eq!(ende(&l, &g, false).await, Zustand::Abgebrochen);
         assert!(!hat(&l, |z| matches!(z, Zustand::Laeuft { .. })));
@@ -188,11 +218,19 @@ fn attrappe_p03_bestaetigung_verweigert() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p04_abhaengigkeiten_kaputt() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "kaputt").await;
         let z = ende(&l, &g, true).await;
-        assert!(matches!(z, Zustand::Fehlgeschlagen(Fehler::AbhaengigkeitenKonflikt(_))), "{z:?}");
+        assert!(
+            matches!(
+                z,
+                Zustand::Fehlgeschlagen(Fehler::AbhaengigkeitenKonflikt(_))
+            ),
+            "{z:?}"
+        );
     })
 }
 
@@ -200,14 +238,23 @@ fn attrappe_p04_abhaengigkeiten_kaputt() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p05_sperre_dauerhaft() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let t0 = Instant::now();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "gesperrt").await;
         let z = ende(&l, &g, true).await;
-        assert!(matches!(z, Zustand::Fehlgeschlagen(Fehler::SperreBelegt(_))), "{z:?}");
+        assert!(
+            matches!(z, Zustand::Fehlgeschlagen(Fehler::SperreBelegt(_))),
+            "{z:?}"
+        );
         assert!(hat(&l, |z| matches!(z, Zustand::WartetAufSperre { .. })));
-        assert!(t0.elapsed() >= Duration::from_millis(1500), "{:?}", t0.elapsed());
+        assert!(
+            t0.elapsed() >= Duration::from_millis(1500),
+            "{:?}",
+            t0.elapsed()
+        );
     })
 }
 
@@ -215,10 +262,15 @@ fn attrappe_p05_sperre_dauerhaft() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p06_abbruch_waehrend_sperre() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "gesperrt").await;
-        warte_bis(&l, Duration::from_secs(10), |z| matches!(z, Zustand::WartetAufSperre { .. })).await;
+        warte_bis(&l, Duration::from_secs(10), |z| {
+            matches!(z, Zustand::WartetAufSperre { .. })
+        })
+        .await;
         g.abbrechen();
         assert_eq!(ende(&l, &g, false).await, Zustand::Abgebrochen);
     })
@@ -228,16 +280,28 @@ fn attrappe_p06_abbruch_waehrend_sperre() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p07_sperre_erneut_versuchen() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "gesperrt").await;
-        warte_bis(&l, Duration::from_secs(10), |z| matches!(z, Zustand::WartetAufSperre { .. })).await;
+        warte_bis(&l, Duration::from_secs(10), |z| {
+            matches!(z, Zustand::WartetAufSperre { .. })
+        })
+        .await;
         let t0 = Instant::now();
         g.sperre_erneut_versuchen();
         let z = ende(&l, &g, false).await;
         // Erneut versuchen setzt die Frist zurück: Ende frühestens nach weiteren 1,5 s.
-        assert!(matches!(z, Zustand::Fehlgeschlagen(Fehler::SperreBelegt(_))), "{z:?}");
-        assert!(t0.elapsed() >= Duration::from_millis(1200), "{:?}", t0.elapsed());
+        assert!(
+            matches!(z, Zustand::Fehlgeschlagen(Fehler::SperreBelegt(_))),
+            "{z:?}"
+        );
+        assert!(
+            t0.elapsed() >= Duration::from_millis(1200),
+            "{:?}",
+            t0.elapsed()
+        );
     })
 }
 
@@ -245,7 +309,9 @@ fn attrappe_p07_sperre_erneut_versuchen() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p08_neustart_merkmal() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "neustart").await;
         assert_eq!(ende(&l, &g, true).await, Zustand::Fertig);
@@ -257,10 +323,15 @@ fn attrappe_p08_neustart_merkmal() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p09_abbruch_in_laeuft() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "langsam").await;
-        warte_bis(&l, Duration::from_secs(10), |z| matches!(z, Zustand::Laeuft { .. })).await;
+        warte_bis(&l, Duration::from_secs(10), |z| {
+            matches!(z, Zustand::Laeuft { .. })
+        })
+        .await;
         glib::timeout_future(Duration::from_millis(500)).await;
         g.abbrechen();
         assert_eq!(ende(&l, &g, false).await, Zustand::Abgebrochen);
@@ -271,17 +342,29 @@ fn attrappe_p09_abbruch_in_laeuft() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p10_zeitbegrenzung_nachfrage() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let laufzeit: Rc<dyn Laufzeit> = Rc::new(GlibLaufzeit);
         let m = Monitor::mit(
             laufzeit,
-            Einstellungen { zeit_ohne_fortschritt: Duration::from_millis(400), ..einstellungen() },
+            Einstellungen {
+                zeit_ohne_fortschritt: Duration::from_millis(400),
+                ..einstellungen()
+            },
             Rc::new(Protokoll::standard()),
         );
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "langsam").await;
-        assert_eq!(ende(&l, &g, true).await, Zustand::Fertig, "Nachfrage bricht nicht ab");
+        assert_eq!(
+            ende(&l, &g, true).await,
+            Zustand::Fertig,
+            "Nachfrage bricht nicht ab"
+        );
         // Ob eine Nachfrage kam, hängt davon ab, wie oft die Attrappe Fortschritt meldet.
-        eprintln!("Nachfragen: {}", l.borrow().iter().filter(|z| ist_nachfrage(z)).count());
+        eprintln!(
+            "Nachfragen: {}",
+            l.borrow().iter().filter(|z| ist_nachfrage(z)).count()
+        );
     })
 }
 
@@ -289,7 +372,9 @@ fn attrappe_p10_zeitbegrenzung_nachfrage() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p11_warteschlange_drei_auftraege() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let ereignisse: Rc<RefCell<Vec<(u64, Zustand)>>> = Rc::new(RefCell::new(Vec::new()));
         let mut griffe = Vec::new();
@@ -300,7 +385,11 @@ fn attrappe_p11_warteschlange_drei_auftraege() {
             let z2 = zelle.clone();
             let (l, f) = melder();
             let g = m.starten(
-                Auftrag { vorgang: Vorgang::Installieren, pakete: vec![p], anwendung: None },
+                Auftrag {
+                    vorgang: Vorgang::Installieren,
+                    pakete: vec![p],
+                    anwendung: None,
+                },
                 pk.clone() as Rc<dyn Paketquelle>,
                 Box::new(move |z| {
                     e.borrow_mut().push((z2.get(), z.clone()));
@@ -340,10 +429,14 @@ fn attrappe_p11_warteschlange_drei_auftraege() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p12_wieder_anbinden_ohne_laufende() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (l, f) = melder();
-        let g = m.wieder_anbinden(pk.clone() as Rc<dyn Paketquelle>, f).remove(0);
+        let g = m
+            .wieder_anbinden(pk.clone() as Rc<dyn Paketquelle>, f)
+            .remove(0);
         assert_eq!(ende(&l, &g, false).await, Zustand::Fertig);
     })
 }
@@ -352,7 +445,9 @@ fn attrappe_p12_wieder_anbinden_ohne_laufende() {
 #[ignore = "braucht Prüfgerüst"]
 fn attrappe_p13_paket_nicht_gefunden() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (l, f) = melder();
         let fremd = Paket {
@@ -364,7 +459,11 @@ fn attrappe_p13_paket_nicht_gefunden() {
             installiert: false,
         };
         let g = m.starten(
-            Auftrag { vorgang: Vorgang::Installieren, pakete: vec![fremd], anwendung: None },
+            Auftrag {
+                vorgang: Vorgang::Installieren,
+                pakete: vec![fremd],
+                anwendung: None,
+            },
             pk.clone() as Rc<dyn Paketquelle>,
             f,
         );
@@ -381,17 +480,25 @@ fn attrappe_p13_paket_nicht_gefunden() {
 #[ignore = "braucht Prüfgerüst mit --polkit verweigern"]
 fn verweigert_p14_nicht_berechtigt_sofort() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let t0 = Instant::now();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "gedit").await;
         let z = ende(&l, &g, true).await;
         // SW-1 meldet KeinAgent, wenn in der Sitzung kein polkit-Agent läuft, sonst NichtBerechtigt.
         assert!(
-            matches!(z, Zustand::Fehlgeschlagen(Fehler::NichtBerechtigt | Fehler::KeinAgent)),
+            matches!(
+                z,
+                Zustand::Fehlgeschlagen(Fehler::NichtBerechtigt | Fehler::KeinAgent)
+            ),
             "{z:?}"
         );
-        assert!(t0.elapsed() < Duration::from_secs(5), "sofort, keine Wiederholung");
+        assert!(
+            t0.elapsed() < Duration::from_secs(5),
+            "sofort, keine Wiederholung"
+        );
         assert!(!hat(&l, |z| matches!(z, Zustand::WartetAufSperre { .. })));
     })
 }
@@ -402,12 +509,18 @@ fn verweigert_p14_nicht_berechtigt_sofort() {
 
 fn daemon_pid() -> String {
     let dir = std::env::var("QS_PK_DIR").expect("QS_PK_DIR");
-    std::fs::read_to_string(format!("{dir}/daemon.pid")).expect("daemon.pid").trim().to_string()
+    std::fs::read_to_string(format!("{dir}/daemon.pid"))
+        .expect("daemon.pid")
+        .trim()
+        .to_string()
 }
 
 fn daemon_beenden() {
     let pid = daemon_pid();
-    let ok = std::process::Command::new("kill").arg(&pid).status().expect("kill");
+    let ok = std::process::Command::new("kill")
+        .arg(&pid)
+        .status()
+        .expect("kill");
     assert!(ok.success(), "kill {pid}");
 }
 
@@ -432,14 +545,28 @@ fn daemon_neu_starten() {
 #[ignore = "braucht frischen Prüfbus; beendet den Daemon"]
 fn daemonweg_p15_ohne_wiederanbindung() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "langsam").await;
-        warte_bis(&l, Duration::from_secs(10), |z| matches!(z, Zustand::Laeuft { prozent: Some(_), .. })).await;
+        warte_bis(&l, Duration::from_secs(10), |z| {
+            matches!(
+                z,
+                Zustand::Laeuft {
+                    prozent: Some(_),
+                    ..
+                }
+            )
+        })
+        .await;
         daemon_beenden();
         let z = ende(&l, &g, true).await;
         assert_eq!(z, Zustand::Fehlgeschlagen(Fehler::DaemonWeg));
-        assert!(hat(&l, |z| matches!(z, Zustand::Laeuft { status, .. } if status.contains("Wiederanbindung"))));
+        assert!(hat(
+            &l,
+            |z| matches!(z, Zustand::Laeuft { status, .. } if status.contains("Wiederanbindung"))
+        ));
     })
 }
 
@@ -447,15 +574,29 @@ fn daemonweg_p15_ohne_wiederanbindung() {
 #[ignore = "braucht frischen Prüfbus; beendet und startet den Daemon"]
 fn daemonweg_p16_mit_wiederanbindung() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["attrappe"]).await else { return };
+        let Some(pk) = pruefbus(&["attrappe"]).await else {
+            return;
+        };
         let m = monitor();
         let (g, l) = starte(&m, &pk, Vorgang::Installieren, "langsam").await;
-        warte_bis(&l, Duration::from_secs(10), |z| matches!(z, Zustand::Laeuft { prozent: Some(_), .. })).await;
+        warte_bis(&l, Duration::from_secs(10), |z| {
+            matches!(
+                z,
+                Zustand::Laeuft {
+                    prozent: Some(_),
+                    ..
+                }
+            )
+        })
+        .await;
         daemon_beenden();
         daemon_neu_starten();
         let z = ende(&l, &g, true).await;
         assert_eq!(z, Zustand::Fertig, "nach Wiederanbindung erneut ausgeführt");
-        assert!(hat(&l, |z| matches!(z, Zustand::Laeuft { status, .. } if status.contains("Wiederanbindung"))));
+        assert!(hat(
+            &l,
+            |z| matches!(z, Zustand::Laeuft { status, .. } if status.contains("Wiederanbindung"))
+        ));
     })
 }
 
@@ -486,11 +627,19 @@ async fn mit_frist<T>(frist: Duration, f: impl std::future::Future<Output = T>) 
     }
 }
 
-async fn testbackend_lauf(pk: &Rc<PaketKit>, vorgang: Vorgang, pakete: Vec<Paket>) -> (Liste, Zustand) {
+async fn testbackend_lauf(
+    pk: &Rc<PaketKit>,
+    vorgang: Vorgang,
+    pakete: Vec<Paket>,
+) -> (Liste, Zustand) {
     let m = monitor();
     let (l, f) = melder();
     let g = m.starten(
-        Auftrag { vorgang, pakete, anwendung: None },
+        Auftrag {
+            vorgang,
+            pakete,
+            anwendung: None,
+        },
         pk.clone() as Rc<dyn Paketquelle>,
         f,
     );
@@ -502,7 +651,9 @@ async fn testbackend_lauf(pk: &Rc<PaketKit>, vorgang: Vorgang, pakete: Vec<Paket
 #[ignore = "braucht Prüfgerüst mit test_fail"]
 fn testfail_p17_fehler_aus_test_fail() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["test_fail"]).await else { return };
+        let Some(pk) = pruefbus(&["test_fail"]).await else {
+            return;
+        };
         // test_fail lässt die Suche scheitern („internal-error: Error number 1“) …
         let r = mit_frist(Duration::from_secs(10), pk.suchen("power", false)).await;
         let r = r.expect("Suche gegen test_fail endet");
@@ -513,7 +664,11 @@ fn testfail_p17_fehler_aus_test_fail() {
         // … schreibende Vorgänge dagegen beendet PackageKit 1.3.4 mit Erfolg
         // (Finished exit=success, kein ErrorCode; per busctl monitor belegt).
         // Der Monitor muss in jedem Fall ein definiertes Ende melden.
-        for v in [Vorgang::Installieren, Vorgang::Entfernen, Vorgang::Aktualisieren] {
+        for v in [
+            Vorgang::Installieren,
+            Vorgang::Entfernen,
+            Vorgang::Aktualisieren,
+        ] {
             let (_l, z) = testbackend_lauf(&pk, v.clone(), vec![testpaket()]).await;
             assert_eq!(z, Zustand::Fertig, "{v:?}");
         }
@@ -526,8 +681,14 @@ fn testfail_p17_fehler_aus_test_fail() {
 #[ignore = "braucht Prüfgerüst mit test_succeed"]
 fn testsucceed_p18_erfolg_ueber_echten_packagekitd() {
     glib_lauf(async {
-        let Some(pk) = pruefbus(&["test_succeed"]).await else { return };
-        for v in [Vorgang::Installieren, Vorgang::Entfernen, Vorgang::Aktualisieren] {
+        let Some(pk) = pruefbus(&["test_succeed"]).await else {
+            return;
+        };
+        for v in [
+            Vorgang::Installieren,
+            Vorgang::Entfernen,
+            Vorgang::Aktualisieren,
+        ] {
             let (l, z) = testbackend_lauf(&pk, v.clone(), vec![testpaket()]).await;
             assert_eq!(z, Zustand::Fertig, "{v:?}: {:?}", l.borrow());
             assert!(matches!(l.borrow()[0], Zustand::Simuliert(_)));

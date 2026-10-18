@@ -94,7 +94,11 @@ impl Protokoll {
     pub fn auftrag(&self, griff: u64, vorgang: &Vorgang, pakete: &[String]) {
         self.schreiben(
             griff,
-            &format!("Auftrag {} {}", vorgang_kurz(vorgang), kuerze_pakete(pakete)),
+            &format!(
+                "Auftrag {} {}",
+                vorgang_kurz(vorgang),
+                kuerze_pakete(pakete)
+            ),
         );
     }
 
@@ -110,7 +114,11 @@ impl Protokoll {
         let Some(pfad) = &self.pfad else { return };
         if let Err(e) = schreibe_datei(pfad, text, self.grenze) {
             // Kein Protokoll darf die Transaktion stören; einmalig auf stderr.
-            eprintln!("qs_transaktion: Protokoll {} nicht schreibbar: {}", pfad.display(), e);
+            eprintln!(
+                "qs_transaktion: Protokoll {} nicht schreibbar: {}",
+                pfad.display(),
+                e
+            );
         }
     }
 }
@@ -255,7 +263,10 @@ mod tests {
         let pfad = dir.join("unter").join("software.log");
         let p = Protokoll::mit_pfad(pfad.clone()).mit_grenze(200);
         for i in 0..10 {
-            p.schreiben(1, &format!("Zeile {i} mit etwas Text, damit die Grenze überschritten wird"));
+            p.schreiben(
+                1,
+                &format!("Zeile {i} mit etwas Text, damit die Grenze überschritten wird"),
+            );
         }
         let alt = dir.join("unter").join("software.log.1");
         assert!(alt.exists(), "Rotation fehlt");

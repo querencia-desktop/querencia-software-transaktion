@@ -20,8 +20,8 @@ use qs_transaktion::fehlertexte;
 use qs_transaktion::laufzeit::GlibLaufzeit;
 use qs_transaktion::protokoll::{groesse, Protokoll};
 use qs_transaktion::{
-    ist_ende, ist_nachfrage, Auftrag, Einstellungen, Fehler, Laufzeit, Monitor, Paket,
-    Paketquelle, Simulation, TransaktionsGriff, Transaktionsmonitor, Vorgang, Zustand,
+    ist_ende, ist_nachfrage, Auftrag, Einstellungen, Fehler, Laufzeit, Monitor, Paket, Paketquelle,
+    Simulation, TransaktionsGriff, Transaktionsmonitor, Vorgang, Zustand,
 };
 
 const EXIT_OK: i32 = 0;
@@ -94,7 +94,9 @@ fn optionen_lesen(args: Vec<String>) -> Result<Optionen, String> {
     let mut it = args.into_iter();
     let ziel = |o: &mut Optionen, z: Ziel| -> Result<(), String> {
         if o.ziel.is_some_and(|alt| alt != z) {
-            return Err("Bitte nur ein Ziel angeben (--attrappe, --pruefgeruest oder --echt).".into());
+            return Err(
+                "Bitte nur ein Ziel angeben (--attrappe, --pruefgeruest oder --echt).".into(),
+            );
         }
         o.ziel = Some(z);
         Ok(())
@@ -115,7 +117,11 @@ fn optionen_lesen(args: Vec<String>) -> Result<Optionen, String> {
             }
             "--abbrechen-nach" => {
                 let v = it.next().ok_or("--abbrechen-nach braucht Sekunden")?;
-                o.abbrechen_nach = Some(v.replace(',', ".").parse().map_err(|_| format!("ungültige Sekunden „{v}“"))?);
+                o.abbrechen_nach = Some(
+                    v.replace(',', ".")
+                        .parse()
+                        .map_err(|_| format!("ungültige Sekunden „{v}“"))?,
+                );
             }
             s if s.starts_with("--szenario=") => {
                 o.szenario = Some(s["--szenario=".len()..].to_string());
@@ -295,18 +301,28 @@ fn attrappe(laufzeit: Rc<dyn Laufzeit>, szenario: &str) -> Result<AttrappeQuelle
                 text: "Attrappe: wie das PackageKit-Backend test_fail".into(),
             })
             .mit_fehlerschritt(2),
-        "sperre-2" => q.fehler_bei_ausfuehren(vec![sperre(), sperre()]).mit_fehlerschritt(0),
-        "sperre-dauerhaft" => q.fehler_bei_ausfuehren_dauerhaft(sperre()).mit_fehlerschritt(0),
-        "daemon-weg" => q.fehler_bei_ausfuehren(vec![Fehler::DaemonWeg]).mit_fehlerschritt(2),
+        "sperre-2" => q
+            .fehler_bei_ausfuehren(vec![sperre(), sperre()])
+            .mit_fehlerschritt(0),
+        "sperre-dauerhaft" => q
+            .fehler_bei_ausfuehren_dauerhaft(sperre())
+            .mit_fehlerschritt(0),
+        "daemon-weg" => q
+            .fehler_bei_ausfuehren(vec![Fehler::DaemonWeg])
+            .mit_fehlerschritt(2),
         "daemon-weg-dauerhaft" => q
             .fehler_bei_ausfuehren(vec![Fehler::DaemonWeg])
             .mit_fehlerschritt(2)
             .laufende_dauerhaft(Err(Fehler::DaemonWeg)),
-        "kein-agent" => q.fehler_bei_ausfuehren_dauerhaft(Fehler::KeinAgent).mit_fehlerschritt(0),
+        "kein-agent" => q
+            .fehler_bei_ausfuehren_dauerhaft(Fehler::KeinAgent)
+            .mit_fehlerschritt(0),
         "nicht-berechtigt" => q
             .fehler_bei_ausfuehren_dauerhaft(Fehler::NichtBerechtigt)
             .mit_fehlerschritt(0),
-        "netz-fehlt" => q.fehler_bei_ausfuehren_dauerhaft(Fehler::NetzFehlt).mit_fehlerschritt(1),
+        "netz-fehlt" => q
+            .fehler_bei_ausfuehren_dauerhaft(Fehler::NetzFehlt)
+            .mit_fehlerschritt(1),
         "nicht-gefunden" => {
             q.fehler_bei_simulation_dauerhaft(Fehler::PaketNichtGefunden("(Attrappe)".into()))
         }
@@ -317,7 +333,11 @@ fn attrappe(laufzeit: Rc<dyn Laufzeit>, szenario: &str) -> Result<AttrappeQuelle
             paket("libgimp2.0", "2.10.38-1", "Bibliotheken für GIMP", false),
         ]),
         "gross" => q.mit_download_bytes(180 * 1024 * 1024),
-        anders => return Err(format!("unbekanntes Szenario „{anders}“. Siehe „qs-cli hilfe“.")),
+        anders => {
+            return Err(format!(
+                "unbekanntes Szenario „{anders}“. Siehe „qs-cli hilfe“."
+            ))
+        }
     })
 }
 
@@ -392,7 +412,14 @@ async fn details(q: &dyn Paketquelle, args: &[String]) -> i32 {
             println!("Paket-ID:     {}", d.paket.id);
             println!("Version:      {}", d.paket.version);
             println!("Architektur:  {}", d.paket.arch);
-            println!("Zustand:      {}", if p.installiert { "installiert" } else { "verfügbar" });
+            println!(
+                "Zustand:      {}",
+                if p.installiert {
+                    "installiert"
+                } else {
+                    "verfügbar"
+                }
+            );
             println!("Lizenz:       {}", d.lizenz);
             println!("Größe:        {}", groesse(d.groesse_bytes));
             println!("Gruppe:       {}", d.gruppe);
@@ -421,7 +448,11 @@ async fn updates(q: &dyn Paketquelle) -> i32 {
                     a.paket.name,
                     a.paket.version,
                     format!("{:?}", a.dringlichkeit),
-                    if a.neustart_noetig { "Neustart nötig" } else { "" }
+                    if a.neustart_noetig {
+                        "Neustart nötig"
+                    } else {
+                        ""
+                    }
                 );
             }
             println!("{} Aktualisierung(en)", liste.len());
@@ -481,7 +512,11 @@ async fn simuliere(q: &dyn Paketquelle, args: &[String]) -> i32 {
         Ok(sim) => {
             println!(
                 "Angefragt: {}",
-                pakete.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ")
+                pakete
+                    .iter()
+                    .map(|p| p.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
             simulation_zeigen(&sim, "");
             EXIT_OK
@@ -543,7 +578,11 @@ async fn fuehre_aus(
     }
     let (tx, rx) = mpsc::unbounded::<Zustand>();
     let griff = monitor.starten(
-        Auftrag { vorgang, pakete, anwendung: None },
+        Auftrag {
+            vorgang,
+            pakete,
+            anwendung: None,
+        },
         quelle,
         Box::new(move |z| {
             let _ = tx.unbounded_send(z);
@@ -603,7 +642,12 @@ async fn zustaende_verfolgen(
         if *letzte.borrow() == text {
             return false;
         }
-        println!("[#{} {:>6.1} s] {}", griff.id, start.elapsed().as_secs_f64(), text);
+        println!(
+            "[#{} {:>6.1} s] {}",
+            griff.id,
+            start.elapsed().as_secs_f64(),
+            text
+        );
         let _ = std::io::stdout().flush();
         *letzte.borrow_mut() = text.to_string();
         true
@@ -638,7 +682,9 @@ async fn zustaende_verfolgen(
                 }
             }
             Zustand::Laeuft { prozent, status } => {
-                let p = prozent.map(|p| format!("{p:>3} %")).unwrap_or_else(|| "  – ".into());
+                let p = prozent
+                    .map(|p| format!("{p:>3} %"))
+                    .unwrap_or_else(|| "  – ".into());
                 if zeile(&format!("Läuft {p}  {status}")) && ist_nachfrage(&z) {
                     println!("             (qs-cli wartet weiter; die Oberfläche bietet hier „Abbrechen“)");
                 }
@@ -692,11 +738,16 @@ fn frage(text: &str) -> bool {
 // ---------------------------------------------------------------------------
 
 fn simulation_zeigen(sim: &Simulation, einzug: &str) {
-    let leer = sim.installieren.is_empty() && sim.entfernen.is_empty() && sim.aktualisieren.is_empty();
+    let leer =
+        sim.installieren.is_empty() && sim.entfernen.is_empty() && sim.aktualisieren.is_empty();
     if leer {
         println!("{einzug}keine zusätzlichen Änderungen");
     }
-    for (zeichen, liste) in [("+", &sim.installieren), ("−", &sim.entfernen), ("↑", &sim.aktualisieren)] {
+    for (zeichen, liste) in [
+        ("+", &sim.installieren),
+        ("−", &sim.entfernen),
+        ("↑", &sim.aktualisieren),
+    ] {
         for p in liste.iter().take(20) {
             println!("{einzug}{zeichen} {} {}", p.name, p.version);
         }
@@ -711,7 +762,11 @@ fn simulation_zeigen(sim: &Simulation, einzug: &str) {
 
 fn fehler_zeigen(f: &Fehler) {
     let t = fehlertexte::fehlertext(f);
-    eprintln!("── {} ── [{}]", t.ueberschrift, fehlertexte::packagekit_code(f));
+    eprintln!(
+        "── {} ── [{}]",
+        t.ueberschrift,
+        fehlertexte::packagekit_code(f)
+    );
     eprintln!("{}", t.erklaerung);
     eprintln!("Empfehlung: {}", t.handlung);
 }

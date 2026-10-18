@@ -13,7 +13,11 @@ fn qs(args: &[&str]) -> Output {
 }
 
 fn text(o: &Output) -> String {
-    format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&o.stdout),
+        String::from_utf8_lossy(&o.stderr)
+    )
 }
 
 #[test]
@@ -52,7 +56,11 @@ fn c05_fuehre_aus_erfolg_mit_fortschrittszeilen() {
     assert_eq!(o.status.code(), Some(0), "{t}");
     assert!(t.contains("Simuliert:"), "{t}");
     assert!(t.contains("Läuft 100 %"), "{t}");
-    assert!(t.lines().any(|z| z.starts_with("[#1") && z.ends_with("Fertig")), "{t}");
+    assert!(
+        t.lines()
+            .any(|z| z.starts_with("[#1") && z.ends_with("Fertig")),
+        "{t}"
+    );
 }
 
 #[test]
@@ -66,7 +74,16 @@ fn c06_szenarien_rueckgabewerte() {
         ("neustart", 0),
         ("sperre-2", 0),
     ] {
-        let o = qs(&["fuehre-aus", "--attrappe", "--schnell", "--szenario", szenario, "--ja", "installieren", "vlc"]);
+        let o = qs(&[
+            "fuehre-aus",
+            "--attrappe",
+            "--schnell",
+            "--szenario",
+            szenario,
+            "--ja",
+            "installieren",
+            "vlc",
+        ]);
         assert_eq!(o.status.code(), Some(code), "{szenario}: {}", text(&o));
     }
 }
@@ -93,6 +110,17 @@ fn c09_unbekannte_option() {
 
 #[test]
 fn c10_neustart_wird_angezeigt() {
-    let o = qs(&["fuehre-aus", "--attrappe", "--szenario", "neustart", "installieren", "vlc"]);
-    assert!(text(&o).contains("Fertig – Neustart erforderlich"), "{}", text(&o));
+    let o = qs(&[
+        "fuehre-aus",
+        "--attrappe",
+        "--szenario",
+        "neustart",
+        "installieren",
+        "vlc",
+    ]);
+    assert!(
+        text(&o).contains("Fertig – Neustart erforderlich"),
+        "{}",
+        text(&o)
+    );
 }

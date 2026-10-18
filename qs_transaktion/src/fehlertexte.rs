@@ -97,10 +97,20 @@ pub fn fehlertext(fehler: &Fehler) -> Fehlertext {
         Fehler::Abgebrochen => (
             "Vorgang abgebrochen".to_string(),
             "Der Vorgang wurde auf Ihren Wunsch abgebrochen. Bereits heruntergeladene Dateien \
-             bleiben im Zwischenspeicher, am System wurde nichts geändert."
+             bleiben im Zwischenspeicher. Griff der Abbruch erst während der Einrichtung, \
+             können einzelne Pakete schon installiert oder entfernt sein."
                 .to_string(),
-            "Keine Handlung nötig. Starten Sie den Vorgang erneut, wenn Sie ihn doch ausführen \
-             möchten."
+            "Prüfen Sie bei Bedarf in der Ansicht „Installiert“, wie der Stand ist, und starten \
+             Sie den Vorgang erneut, wenn Sie ihn doch ausführen möchten."
+                .to_string(),
+        ),
+        Fehler::Sonstiges { code, .. } if code.trim() == "zeitueberschreitung" => (
+            "Paketverwaltung antwortet nicht".to_string(),
+            "PackageKit hat innerhalb der Frist keine Antwort geliefert. Möglicherweise ist \
+             der Dienst überlastet oder hängt."
+                .to_string(),
+            "Versuchen Sie es in einigen Minuten erneut. Hilft das nicht, melden Sie sich neu \
+             an oder starten Sie den Rechner neu."
                 .to_string(),
         ),
         Fehler::Sonstiges { code, text } => (
@@ -262,6 +272,19 @@ mod tests {
         };
         assert_eq!(packagekit_code(&f), "repo-not-available");
         assert!(kurz(&f).starts_with("repo-not-available: "));
+    }
+
+    #[test]
+    fn zeitueberschreitung_von_sw1_hat_eigenen_text() {
+        let f = Fehler::Sonstiges {
+            code: "zeitueberschreitung".into(),
+            text: "60 s".into(),
+        };
+        assert_eq!(
+            fehlertext(&f).ueberschrift,
+            "Paketverwaltung antwortet nicht"
+        );
+        assert_eq!(packagekit_code(&f), "zeitueberschreitung");
     }
 
     #[test]

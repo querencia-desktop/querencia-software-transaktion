@@ -60,7 +60,9 @@ pub mod typen {
 
 pub use attrappe::AttrappeQuelle;
 pub use laufzeit::Laufzeit;
-pub use monitor::{ist_ende, ist_nachfrage, Einstellungen, Monitor, NACHFRAGE_PRAEFIX};
+pub use monitor::{
+    ist_ende, ist_nachfrage, Einstellungen, Monitor, NACHFRAGE_PRAEFIX, NEUSTART_HINWEIS,
+};
 pub use protokoll::Protokoll;
 pub use typen::{
     Abbruch, Auftrag, Fehler, Fortschritt, Paket, PaketId, Paketquelle, Simulation,

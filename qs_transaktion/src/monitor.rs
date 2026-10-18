@@ -25,6 +25,11 @@ use crate::typen::{Fehler, Fortschritt, PaketId, Paketquelle, Simulation, Vorgan
 
 pub use crate::typen::{Auftrag, TransaktionsGriff, Transaktionsmonitor, Zustand};
 
+/// Statustext, mit dem `Laeuft` meldet, dass die Transaktion einen Neustart
+/// verlangt (`RequireRestart`). Danach kommt `Fertig`; zusätzlich liefert
+/// [`Monitor::braucht_neustart`] das Merkmal dauerhaft.
+pub const NEUSTART_HINWEIS: &str = "Ein Neustart wird nötig sein";
+
 /// Anfang des Statustexts der Nachfrage nach Zeitüberschreitung ohne Fortschritt.
 pub const NACHFRAGE_PRAEFIX: &str = "Kein Fortschritt seit ";
 
@@ -37,7 +42,10 @@ pub fn ist_nachfrage(z: &Zustand) -> bool {
 
 /// Endzustände: danach kommt keine Meldung mehr.
 pub fn ist_ende(z: &Zustand) -> bool {
-    matches!(z, Zustand::Fertig | Zustand::Fehlgeschlagen(_) | Zustand::Abgebrochen)
+    matches!(
+        z,
+        Zustand::Fertig | Zustand::Fehlgeschlagen(_) | Zustand::Abgebrochen
+    )
 }
 
 /// Zeiten und Grenzen der Zustandsmaschine.
@@ -158,10 +166,18 @@ struct Innen {
 impl Monitor {
     /// Monitor mit Standardeinstellungen und Standardprotokoll.
     pub fn neu(laufzeit: Rc<dyn Laufzeit>) -> Self {
-        Self::mit(laufzeit, Einstellungen::default(), Rc::new(Protokoll::standard()))
+        Self::mit(
+            laufzeit,
+            Einstellungen::default(),
+            Rc::new(Protokoll::standard()),
+        )
     }
 
-    pub fn mit(laufzeit: Rc<dyn Laufzeit>, einstellungen: Einstellungen, protokoll: Rc<Protokoll>) -> Self {
+    pub fn mit(
+        laufzeit: Rc<dyn Laufzeit>,
+        einstellungen: Einstellungen,
+        protokoll: Rc<Protokoll>,
+    ) -> Self {
         Self {
             innen: Rc::new(Innen {
                 laufzeit,
@@ -223,7 +239,11 @@ impl Transaktionsmonitor for Monitor {
         innen.protokoll.auftrag(
             id,
             &auftrag.vorgang,
-            &auftrag.pakete.iter().map(|p| p.id.clone()).collect::<Vec<_>>(),
+            &auftrag
+                .pakete
+                .iter()
+                .map(|p| p.id.clone())
+                .collect::<Vec<_>>(),
         );
         let lauf = Lauf {
             innen: innen.clone(),
@@ -252,7 +272,10 @@ impl Transaktionsmonitor for Monitor {
         let (sender, empfaenger) = mpsc::unbounded();
         self.innen.verzeichnis.borrow_mut().insert(id, sender);
         let innen = self.innen.clone();
-        innen.protokoll.schreiben(id, "Wiederanbindung nach Neustart: suche laufende Transaktionen");
+        innen.protokoll.schreiben(
+            id,
+            "Wiederanbindung nach Neustart: suche laufende Transaktionen",
+        );
         let lauf = Lauf {
             innen: innen.clone(),
             id,
@@ -391,7 +414,9 @@ impl Lauf {
             let r = self.befehle.borrow_mut().poll_next_unpin(cx);
             match r {
                 std::task::Poll::Ready(Some(Befehl::Bestaetigen)) => self.bestaetigt.set(true),
-                std::task::Poll::Ready(Some(Befehl::Abbrechen)) => self.abbruch_gewuenscht.set(true),
+                std::task::Poll::Ready(Some(Befehl::Abbrechen)) => {
+                    self.abbruch_gewuenscht.set(true)
+                }
                 _ => {}
             }
             r
@@ -473,7 +498,8 @@ impl Lauf {
                     return Err(Zustand::Abgebrochen);
                 }
                 Some(Ok(sim)) => return Ok(sim),
-                Some(Err(Fehler::SperreBelegt(wer))) => match self.sperre_warten(&mut sperre).await {
+                Some(Err(Fehler::SperreBelegt(wer))) => match self.sperre_warten(&mut sperre).await
+                {
                     Sperrausgang::Weiter => continue,
                     Sperrausgang::Abgebrochen => return Err(Zustand::Abgebrochen),
                     Sperrausgang::Aufgegeben => {
@@ -481,7 +507,10 @@ impl Lauf {
                     }
                 },
                 Some(Err(f)) => {
-                    self.log(&format!("Simulation fehlgeschlagen: {}", fehlertexte::kurz(&f)));
+                    self.log(&format!(
+                        "Simulation fehlgeschlagen: {}",
+                        fehlertexte::kurz(&f)
+                    ));
                     return Err(Zustand::Fehlgeschlagen(f));
                 }
             }
@@ -535,13 +564,15 @@ impl Lauf {
                 Ausgang::Abgebrochen | Ausgang::Fehler(Fehler::Abgebrochen) => {
                     return Zustand::Abgebrochen;
                 }
-                Ausgang::Fehler(Fehler::SperreBelegt(wer)) => match self.sperre_warten(&mut sperre).await {
-                    Sperrausgang::Weiter => continue,
-                    Sperrausgang::Abgebrochen => return Zustand::Abgebrochen,
-                    Sperrausgang::Aufgegeben => {
-                        return Zustand::Fehlgeschlagen(Fehler::SperreBelegt(wer));
+                Ausgang::Fehler(Fehler::SperreBelegt(wer)) => {
+                    match self.sperre_warten(&mut sperre).await {
+                        Sperrausgang::Weiter => continue,
+                        Sperrausgang::Abgebrochen => return Zustand::Abgebrochen,
+                        Sperrausgang::Aufgegeben => {
+                            return Zustand::Fehlgeschlagen(Fehler::SperreBelegt(wer));
+                        }
                     }
-                },
+                }
                 Ausgang::Fehler(Fehler::DaemonWeg) => {
                     if wieder_angebunden {
                         self.log("Verbindung erneut verloren, keine zweite Wiederanbindung");
@@ -631,6 +662,7 @@ impl Lauf {
                         Some(Fortschritt::BrauchtNeustart) => {
                             self.innen.neustart.borrow_mut().insert(self.id);
                             self.log("BrauchtNeustart gemeldet");
+                            self.melde(Zustand::Laeuft { prozent, status: NEUSTART_HINWEIS.to_string() });
                         }
                         Some(Fortschritt::Fertig) => break Ausgang::Fertig,
                         Some(Fortschritt::Abgebrochen) => break Ausgang::Abgebrochen,
@@ -685,7 +717,10 @@ impl Lauf {
             return Sperrausgang::Abgebrochen;
         }
         if sperre.versuche > 0 {
-            self.log(&format!("Sperre weiterhin belegt (Versuch {})", sperre.versuche));
+            self.log(&format!(
+                "Sperre weiterhin belegt (Versuch {})",
+                sperre.versuche
+            ));
         }
         let seit = self.sperre_beginn();
         self.melde(Zustand::WartetAufSperre { seit });
@@ -728,7 +763,8 @@ impl Lauf {
         self.log("Verbindung zur Paketverwaltung verloren; ein Wiederanbindungsversuch");
         self.melde(Zustand::Laeuft {
             prozent: None,
-            status: "Verbindung zur Paketverwaltung verloren, versuche Wiederanbindung …".to_string(),
+            status: "Verbindung zur Paketverwaltung verloren, versuche Wiederanbindung …"
+                .to_string(),
         });
 
         // a) Ist der Daemon wieder erreichbar?
@@ -746,7 +782,9 @@ impl Lauf {
                         e.daemon_versuche.max(1),
                         fehlertexte::kurz(&f)
                     ));
-                    if versuch < e.daemon_versuche.max(1) && !self.schlafen_oder_abbruch(e.daemon_wartezeit).await {
+                    if versuch < e.daemon_versuche.max(1)
+                        && !self.schlafen_oder_abbruch(e.daemon_wartezeit).await
+                    {
                         return Err(Zustand::Abgebrochen);
                     }
                 }
@@ -810,7 +848,10 @@ impl Lauf {
     /// Aktualisieren → keins mehr in der Aktualisierungsliste;
     /// QuellenAuffrischen → nie (wird wiederholt, ist harmlos).
     async fn ziel_erreicht(&self, vorgang: &Vorgang, ids: &[PaketId]) -> Result<bool, Fehler> {
-        let namen: Vec<&str> = ids.iter().map(|id| id.split(';').next().unwrap_or(id)).collect();
+        let namen: Vec<&str> = ids
+            .iter()
+            .map(|id| id.split(';').next().unwrap_or(id))
+            .collect();
         match vorgang {
             Vorgang::Installieren | Vorgang::Entfernen => {
                 let soll = *vorgang == Vorgang::Installieren;
@@ -869,7 +910,10 @@ impl Lauf {
         loop {
             match self.quelle.laufende_transaktionen().await {
                 Err(f) => {
-                    self.log(&format!("Wiederanbindung: Daemon nicht erreichbar: {}", fehlertexte::kurz(&f)));
+                    self.log(&format!(
+                        "Wiederanbindung: Daemon nicht erreichbar: {}",
+                        fehlertexte::kurz(&f)
+                    ));
                     self.melde(Zustand::Fehlgeschlagen(f));
                     return;
                 }
@@ -884,7 +928,10 @@ impl Lauf {
                         status: if l.len() == 1 {
                             "Eine frühere Transaktion der Paketverwaltung läuft noch …".to_string()
                         } else {
-                            format!("{} frühere Transaktionen der Paketverwaltung laufen noch …", l.len())
+                            format!(
+                                "{} frühere Transaktionen der Paketverwaltung laufen noch …",
+                                l.len()
+                            )
                         },
                     });
                 }
@@ -949,7 +996,9 @@ pub fn braucht_bestaetigung(e: &Einstellungen, auftrag: &Auftrag, sim: &Simulati
                     .iter()
                     .any(|a| a.id == p.id || a.name == p.name)
             });
-            zusatz || !sim.entfernen.is_empty() || sim.download_bytes > e.bestaetigung_ab_download_bytes
+            zusatz
+                || !sim.entfernen.is_empty()
+                || sim.download_bytes > e.bestaetigung_ab_download_bytes
         }
         Vorgang::Aktualisieren | Vorgang::QuellenAuffrischen => false,
     }
@@ -983,7 +1032,11 @@ mod tests {
     #[test]
     fn bestaetigung_entfernen_immer() {
         let e = Einstellungen::default();
-        assert!(braucht_bestaetigung(&e, &auftrag(Vorgang::Entfernen, &["a"]), &Simulation::default()));
+        assert!(braucht_bestaetigung(
+            &e,
+            &auftrag(Vorgang::Entfernen, &["a"]),
+            &Simulation::default()
+        ));
     }
 
     #[test]
@@ -1023,7 +1076,11 @@ mod tests {
             download_bytes: 900 * 1024 * 1024,
             ..Default::default()
         };
-        assert!(!braucht_bestaetigung(&e, &auftrag(Vorgang::Aktualisieren, &["a"]), &s));
+        assert!(!braucht_bestaetigung(
+            &e,
+            &auftrag(Vorgang::Aktualisieren, &["a"]),
+            &s
+        ));
     }
 
     #[test]
@@ -1047,5 +1104,4 @@ mod tests {
         g.sperre_erneut_versuchen();
         assert_eq!(g.id, u64::MAX);
     }
-
 }
