@@ -21,7 +21,8 @@ ERGEBNIS="$PWD/target/pruefgeruest-ergebnis.txt"
 : > "$ERGEBNIS"
 
 [ -x "$BUS" ] || { echo "BLOCKED: $BUS fehlt (SW-1-Prüfgerüst)" >&2; exit 1; }
-[ -x "$QS_PK_ATTRAPPE" ] || { echo "BLOCKED: $QS_PK_ATTRAPPE fehlt (in SW-1: cargo build --offline --bin qs-pk-attrappe)" >&2; exit 1; }
+# qs-pk-attrappe muss nicht vorab existieren: pk-pruefbus.sh baut sie beim ersten Start.
+# Der DaemonWeg-Fall startet sie neu und prüft deshalb nach jedem Busstart den Pfad.
 
 stoppen() { "$BUS" stop >/dev/null 2>&1 || true; }
 trap stoppen EXIT
@@ -34,6 +35,7 @@ lauf() { # $1 = Name, $2 = Backend, $3 = polkit, $4… = Testfilter
   "$BUS" start "$backend" --polkit "$polkit"
   eval "$("$BUS" env)"
   export QS_PK_BUS
+  [ -x "$QS_PK_ATTRAPPE" ] || { echo "BLOCKED: $QS_PK_ATTRAPPE fehlt nach dem Busstart" >&2; exit 1; }
   set +e
   nice cargo test --offline -j2 -p qs-cli --test pruefgeruest -- --ignored --test-threads=1 "$@" 2>&1 \
     | tee "target/pruefgeruest-$name.txt"
