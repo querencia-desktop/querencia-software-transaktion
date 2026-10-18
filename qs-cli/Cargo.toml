@@ -13,15 +13,16 @@ path = "src/main.rs"
 
 [dependencies]
 qs_typen = { path = "../../querencia-software-paketkit/qs_typen" }
-qs_transaktion = { path = "../qs_transaktion", features = ["tokio"] }
-tokio = { version = "1", features = ["rt", "time"] }
+qs_transaktion = { path = "../qs_transaktion", features = ["glib"] }
+glib = "0.22"
+futures = "0.3"
+# D-Bus-Schicht von SW-1 für --echt (nur lesend) und --pruefgeruest.
+# Ohne dieses Feature (--no-default-features) kennt qs-cli nur --attrappe.
+qs_paketkit = { path = "../../querencia-software-paketkit", optional = true }
 
 [features]
-default = []
-# INTEGRATION: echter PackageKit über SW-1 (nur lesende Befehle):
-#   qs_paketkit = { path = "../../querencia-software-paketkit/qs_paketkit", optional = true }
-#   echt = ["dep:qs_paketkit"]
-echt = []
+default = ["paketkit"]
+paketkit = ["dep:qs_paketkit"]
 
 [lints.rust]
 unsafe_code = "forbid"

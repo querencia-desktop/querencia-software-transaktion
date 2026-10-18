@@ -145,7 +145,7 @@ fn t01_installieren_erfolg_ohne_bestaetigung() {
         let (_g, l) = starte(&m, &q, auftrag(Vorgang::Installieren, "vlc"));
         assert_eq!(warte_ende(&l).await, Zustand::Fertig);
         let z = l.borrow().clone();
-        assert!(matches!(&z[0], Zustand::Simuliert(s) if s.installieren.len() == 1));
+        assert!(matches!(&z[0], Zustand::Simuliert(s) if s.installieren.is_empty()));
         assert!(!z.iter().any(ist_bestaetigung));
         assert!(z.iter().any(|z| matches!(z, Zustand::Laeuft { prozent: Some(100), .. })));
         assert!(q.ist_installiert("vlc"));
@@ -161,7 +161,7 @@ fn t02_installieren_mit_zusatzpaketen_fragt_nach() {
         let q = Rc::new(quelle().mit_zusatz_installieren(vec![paket("gimp-data", "2.10", "", false)]));
         let (g, l) = starte(&m, &q, auftrag(Vorgang::Installieren, "gimp"));
         warte_bis(&l, ist_bestaetigung).await;
-        assert!(matches!(&l.borrow()[0], Zustand::Simuliert(s) if s.installieren.len() == 2));
+        assert!(matches!(&l.borrow()[0], Zustand::Simuliert(s) if s.installieren.len() == 1 && s.installieren[0].name == "gimp-data"));
         tokio::time::sleep(Duration::from_secs(600)).await;
         assert_eq!(q.aufrufe().ausfuehren, 0, "darf ohne Bestätigung nicht ausführen");
         g.bestaetigen();
@@ -189,7 +189,7 @@ fn t04_entfernen_fragt_immer_nach_und_zeigt_mitgehende() {
         let q = Rc::new(quelle().mit_zusatz_entfernen(vec![paket("libhtop", "3.3", "", true)]));
         let (g, l) = starte(&m, &q, auftrag(Vorgang::Entfernen, "htop"));
         warte_bis(&l, ist_bestaetigung).await;
-        assert!(matches!(&l.borrow()[0], Zustand::Simuliert(s) if s.entfernen.len() == 2));
+        assert!(matches!(&l.borrow()[0], Zustand::Simuliert(s) if s.entfernen.len() == 1 && s.entfernen[0].name == "libhtop"));
         g.bestaetigen();
         assert_eq!(warte_ende(&l).await, Zustand::Fertig);
         assert!(!q.ist_installiert("htop"));
@@ -561,7 +561,8 @@ fn t28_daemon_weg_wiederanbindung_vorgang_war_schon_fertig() {
         let (_g, l) = starte(&m, &q, auftrag(Vorgang::Installieren, "vlc"));
         assert_eq!(warte_ende(&l).await, Zustand::Fertig);
         assert_eq!(q.aufrufe().ausfuehren, 1, "nicht doppelt ausführen");
-        assert_eq!(q.aufrufe().simulieren, 2, "gleiche Paketliste neu simuliert");
+        assert_eq!(q.aufrufe().simulieren, 1);
+        assert_eq!(q.aufrufe().paket_nach_name, 1, "Zielzustand über Resolve geprüft");
         assert_eq!(q.aufrufe().laufende_transaktionen, 2);
         assert!(hat(&l, |z| matches!(z, Zustand::Laeuft { status, .. } if status.contains("Wiederanbindung"))));
     })
@@ -842,7 +843,7 @@ fn t41_protokoll_griff_zustandswechsel_fehlercode_und_kuerzung() {
         let zeilen = protokoll.zeilen();
         let marke = format!("[#{}]", g.id);
         assert!(zeilen.iter().all(|z| z.contains(&marke)), "{zeilen:#?}");
-        assert!(zeilen.iter().any(|z| z.contains("Start → Simuliert(+30")), "{zeilen:#?}");
+        assert!(zeilen.iter().any(|z| z.contains("Start → Simuliert(+0 −0 ↑0")), "{zeilen:#?}");
         assert!(zeilen.iter().any(|z| z.contains("→ Fehlgeschlagen(repo-not-available")), "{zeilen:#?}");
         let auftragszeile = zeilen.iter().find(|z| z.contains("Auftrag Installieren")).unwrap();
         assert!(auftragszeile.contains("und 10 weitere"), "{auftragszeile}");
@@ -851,5 +852,54 @@ fn t41_protokoll_griff_zustandswechsel_fehlercode_und_kuerzung() {
         let z0 = &zeilen[0];
         assert_eq!(&z0[4..5], "-");
         assert_eq!(&z0[13..14], ":");
+    })
+}
+
+#[test]
+fn t42_daemon_weg_beim_entfernen_ziel_schon_erreicht() {
+    lokal!(async {
+        let m = monitor();
+        let q = Rc::new(
+            quelle()
+                .fehler_bei_ausfuehren(vec![Fehler::DaemonWeg])
+                .mit_fehlerschritt(4)
+                .wirkung_vor_fehler(),
+        );
+        let (g, l) = starte(&m, &q, auftrag(Vorgang::Entfernen, "htop"));
+        warte_bis(&l, ist_bestaetigung).await;
+        g.bestaetigen();
+        assert_eq!(warte_ende(&l).await, Zustand::Fertig);
+        assert_eq!(q.aufrufe().ausfuehren, 1);
+        assert!(!q.ist_installiert("htop"));
+    })
+}
+
+#[test]
+fn t43_daemon_weg_beim_aktualisieren_prueft_aktualisierungsliste() {
+    lokal!(async {
+        let m = monitor();
+        let q = Rc::new(
+            AttrappeQuelle::beispiel(laufzeit())
+                .fehler_bei_ausfuehren(vec![Fehler::DaemonWeg])
+                .mit_fehlerschritt(1),
+        );
+        let htop = q.katalog().into_iter().find(|p| p.name == "htop").unwrap();
+        let (_g, l) = starte(&m, &q, Auftrag { vorgang: Vorgang::Aktualisieren, pakete: vec![htop], anwendung: None });
+        assert_eq!(warte_ende(&l).await, Zustand::Fertig);
+        assert_eq!(q.aufrufe().aktualisierungen, 1, "Zielzustand über GetUpdates geprüft");
+        assert_eq!(q.aufrufe().ausfuehren, 2, "htop war noch offen → erneut ausgeführt");
+    })
+}
+
+#[test]
+fn t44_protokoll_schreibt_keine_prozentschritte() {
+    lokal!(async {
+        let protokoll = Rc::new(Protokoll::stumm());
+        let m = Monitor::mit(laufzeit(), Einstellungen::default(), protokoll.clone());
+        let q = Rc::new(quelle().mit_schritten(20, Duration::from_millis(10)));
+        let (_g, l) = starte(&m, &q, auftrag(Vorgang::Installieren, "vlc"));
+        assert_eq!(warte_ende(&l).await, Zustand::Fertig);
+        assert!(l.borrow().len() > 40, "Oberfläche bekommt jeden Schritt");
+        assert!(protokoll.zeilen().len() <= 10, "{:#?}", protokoll.zeilen());
     })
 }

@@ -232,6 +232,8 @@ impl Transaktionsmonitor for Monitor {
             melden: Rc::from(melden),
             befehle: RefCell::new(empfaenger),
             bestaetigt: Cell::new(false),
+            letzter_schluessel: RefCell::new(None),
+            letzter_protokolliert: RefCell::new(None),
         };
         innen
             .laufzeit
@@ -256,6 +258,8 @@ impl Transaktionsmonitor for Monitor {
             melden: Rc::from(melden),
             befehle: RefCell::new(empfaenger),
             bestaetigt: Cell::new(false),
+            letzter_schluessel: RefCell::new(None),
+            letzter_protokolliert: RefCell::new(None),
         };
         innen
             .laufzeit
@@ -312,6 +316,8 @@ struct Lauf {
     melden: Rc<dyn Fn(Zustand)>,
     befehle: RefCell<mpsc::UnboundedReceiver<Befehl>>,
     bestaetigt: Cell<bool>,
+    letzter_schluessel: RefCell<Option<String>>,
+    letzter_protokolliert: RefCell<Option<Zustand>>,
 }
 
 /// Räumt beim Verlassen des Ablaufs auf, egal auf welchem Weg.
@@ -329,12 +335,16 @@ impl Drop for Aufraeumer {
 
 impl Lauf {
     fn melde(&self, zustand: Zustand) {
-        let vorher = self.innen.zustaende.borrow().get(&self.id).cloned();
-        let gleich = vorher.as_ref() == Some(&zustand);
-        if !gleich || !matches!(zustand, Zustand::Laeuft { .. }) {
+        // Protokolliert werden Zustandswechsel und Wechsel des Statustexts, nicht
+        // jeder Prozentschritt (sonst wächst das Protokoll mit jeder Meldung).
+        let schluessel = protokollschluessel(&zustand);
+        if self.letzter_schluessel.borrow().as_deref() != Some(schluessel.as_str()) {
+            let vorher = self.letzter_protokolliert.borrow().clone();
             self.innen
                 .protokoll
                 .zustandswechsel(self.id, vorher.as_ref(), &zustand);
+            *self.letzter_schluessel.borrow_mut() = Some(schluessel);
+            *self.letzter_protokolliert.borrow_mut() = Some(zustand.clone());
         }
         self.innen
             .zustaende
@@ -660,8 +670,7 @@ impl Lauf {
 
     /// Ein Wiederanbindungsversuch nach `DaemonWeg`.
     ///
-    /// `Ok(true)`: nichts mehr zu tun (die Simulation mit derselben Paketliste
-    /// zeigt keine Änderung) → `Fertig`. `Ok(false)`: erneut ausführen.
+    /// `Ok(true)`: nichts mehr zu tun (die Pakete sind schon im Zielzustand) → `Fertig`. `Ok(false)`: erneut ausführen.
     /// `Err(zustand)`: Endzustand (Daemon bleibt weg, Abbruch, anderer Fehler).
     async fn wiederanbinden(&self, vorgang: &Vorgang, ids: &[PaketId]) -> Result<bool, Zustand> {
         let e = &self.innen.einstellungen;
@@ -724,21 +733,54 @@ impl Lauf {
             }
         }
 
-        // c) Dieselbe Paketliste erneut simulieren: ist noch etwas zu tun?
-        match self.quelle.simulieren(vorgang.clone(), ids.to_vec()).await {
-            Ok(sim) => {
-                if nichts_zu_tun(vorgang, &sim) {
-                    self.log("Wiederanbindung: Simulation zeigt keine Änderung mehr → Fertig");
-                    Ok(true)
-                } else {
-                    self.log("Wiederanbindung: führe dieselbe Paketliste erneut aus");
-                    Ok(false)
-                }
+        // c) Ist der Zielzustand schon erreicht? (Der Daemon kann nach dpkg, aber
+        //    vor `Finished` gestorben sein.) Sonst dieselbe Paketliste erneut ausführen.
+        match self.ziel_erreicht(vorgang, ids).await {
+            Ok(true) => {
+                self.log("Wiederanbindung: Zielzustand bereits erreicht → Fertig");
+                Ok(true)
+            }
+            Ok(false) => {
+                self.log("Wiederanbindung: führe dieselbe Paketliste erneut aus");
+                Ok(false)
             }
             Err(f) => {
-                self.log(&format!("Wiederanbindung: Simulation fehlgeschlagen: {}", fehlertexte::kurz(&f)));
+                self.log(&format!(
+                    "Wiederanbindung: Zustandsprüfung fehlgeschlagen: {}",
+                    fehlertexte::kurz(&f)
+                ));
                 Err(Zustand::Fehlgeschlagen(f))
             }
+        }
+    }
+
+    /// Prüft über lesende Aufrufe, ob die Pakete schon im Zielzustand sind:
+    /// Installieren → alle installiert; Entfernen → keins mehr installiert;
+    /// Aktualisieren → keins mehr in der Aktualisierungsliste;
+    /// QuellenAuffrischen → nie (wird wiederholt, ist harmlos).
+    async fn ziel_erreicht(&self, vorgang: &Vorgang, ids: &[PaketId]) -> Result<bool, Fehler> {
+        let namen: Vec<&str> = ids.iter().map(|id| id.split(';').next().unwrap_or(id)).collect();
+        match vorgang {
+            Vorgang::Installieren | Vorgang::Entfernen => {
+                let soll = *vorgang == Vorgang::Installieren;
+                for n in namen {
+                    let ist = self
+                        .quelle
+                        .paket_nach_name(n)
+                        .await?
+                        .map(|p| p.installiert)
+                        .unwrap_or(false);
+                    if ist != soll {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Vorgang::Aktualisieren => {
+                let offen = self.quelle.aktualisierungen().await?;
+                Ok(!offen.iter().any(|a| namen.contains(&a.paket.name.as_str())))
+            }
+            Vorgang::QuellenAuffrischen => Ok(false),
         }
     }
 
@@ -818,6 +860,19 @@ impl Sperre {
     }
 }
 
+/// Was zählt fürs Protokoll als „anderer Zustand“: die Art, bei `Laeuft` der
+/// Statustext ohne Paketzusatz („… – vlc 40 %“) und ohne Prozent.
+fn protokollschluessel(z: &Zustand) -> String {
+    match z {
+        Zustand::Laeuft { status, .. } => {
+            let basis = status.split(" – ").next().unwrap_or(status);
+            format!("Laeuft:{basis}")
+        }
+        Zustand::WartetAufSperre { .. } => "WartetAufSperre".to_string(),
+        anders => protokoll::zustand_kurz(anders),
+    }
+}
+
 fn zusammen(status: &str, paket_info: &str) -> String {
     if paket_info.is_empty() {
         status.to_string()
@@ -829,7 +884,9 @@ fn zusammen(status: &str, paket_info: &str) -> String {
 }
 
 /// Bestätigung nötig? Entfernen immer; Installieren, wenn die Simulation
-/// zusätzliche Pakete oder mehr als die Downloadgrenze zeigt.
+/// zusätzliche Pakete oder mehr als die Downloadgrenze zeigt. Die angefragten
+/// Pakete selbst zählen nicht als zusätzlich (SW-1 lässt sie in der Simulation
+/// ohnehin weg; sollte ein Backend sie mitliefern, werden sie hier gefiltert).
 pub fn braucht_bestaetigung(e: &Einstellungen, auftrag: &Auftrag, sim: &Simulation) -> bool {
     match auftrag.vorgang {
         Vorgang::Entfernen => true,
@@ -843,16 +900,6 @@ pub fn braucht_bestaetigung(e: &Einstellungen, auftrag: &Auftrag, sim: &Simulati
             zusatz || !sim.entfernen.is_empty() || sim.download_bytes > e.bestaetigung_ab_download_bytes
         }
         Vorgang::Aktualisieren | Vorgang::QuellenAuffrischen => false,
-    }
-}
-
-/// Zeigt die Simulation für diesen Vorgang keine Änderung mehr?
-pub fn nichts_zu_tun(vorgang: &Vorgang, sim: &Simulation) -> bool {
-    match vorgang {
-        Vorgang::Installieren => sim.installieren.is_empty(),
-        Vorgang::Entfernen => sim.entfernen.is_empty(),
-        Vorgang::Aktualisieren => sim.aktualisieren.is_empty(),
-        Vorgang::QuellenAuffrischen => false,
     }
 }
 
@@ -949,16 +996,4 @@ mod tests {
         assert_eq!(g.id, u64::MAX);
     }
 
-    #[test]
-    fn nichts_zu_tun_je_vorgang() {
-        let leer = Simulation::default();
-        assert!(nichts_zu_tun(&Vorgang::Installieren, &leer));
-        assert!(nichts_zu_tun(&Vorgang::Entfernen, &leer));
-        assert!(!nichts_zu_tun(&Vorgang::QuellenAuffrischen, &leer));
-        let s = Simulation {
-            installieren: vec![paket("a")],
-            ..Default::default()
-        };
-        assert!(!nichts_zu_tun(&Vorgang::Installieren, &s));
-    }
 }

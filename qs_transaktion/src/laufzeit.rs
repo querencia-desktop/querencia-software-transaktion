@@ -43,7 +43,10 @@ pub struct GlibLaufzeit;
 #[cfg(feature = "glib")]
 impl Laufzeit for GlibLaufzeit {
     fn starten(&self, aufgabe: Aufgabe) {
-        glib::MainContext::default().spawn_local(aufgabe);
+        // Wie SW-1: Thread-Standardkontext, sonst der globale Standardkontext.
+        glib::MainContext::thread_default()
+            .unwrap_or_else(glib::MainContext::default)
+            .spawn_local(aufgabe);
     }
 
     fn schlafen(&self, dauer: Duration) -> Aufgabe {

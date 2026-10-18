@@ -3,8 +3,9 @@
 //!
 //! Sie dient den Unit-Tests der Zustandsmaschine und `qs-cli --attrappe`. Sie
 //! verändert nie etwas am System; „installieren“ heißt hier: das Merkmal
-//! `installiert` im eigenen Katalog umschalten. Dadurch zeigt eine zweite
-//! Simulation nach erfolgreichem Lauf nichts mehr zu tun – wie der echte Daemon.
+//! `installiert` im eigenen Katalog umschalten. Dadurch sieht die
+//! Wiederanbindung über `paket_nach_name` den neuen Zustand – wie beim echten
+//! Daemon. Die Simulation nennt wie bei SW-1 nur die *zusätzlichen* Pakete.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -22,6 +23,7 @@ use crate::typen::{
 pub struct Aufrufe {
     pub suchen: u32,
     pub details: u32,
+    pub paket_nach_name: u32,
     pub aktualisierungen: u32,
     pub simulieren: u32,
     pub ausfuehren: u32,
@@ -303,17 +305,22 @@ impl Innen {
             })
             .collect();
         match vorgang {
+            // Wie SW-1: die Simulation nennt nur, was *zusätzlich* geschieht;
+            // die angefragten Pakete selbst erscheinen nicht.
             Vorgang::Installieren => {
-                sim.installieren = gewaehlt.into_iter().filter(|p| !p.installiert).collect();
-                if !sim.installieren.is_empty() {
-                    sim.installieren.extend(self.zusatz_installieren.iter().cloned());
+                if gewaehlt.iter().any(|p| !p.installiert) {
+                    sim.installieren = self
+                        .zusatz_installieren
+                        .iter()
+                        .filter(|z| !self.katalog.iter().any(|k| k.name == z.name && k.installiert))
+                        .cloned()
+                        .collect();
                     sim.download_bytes = self.download_bytes;
                 }
             }
             Vorgang::Entfernen => {
-                sim.entfernen = gewaehlt.into_iter().filter(|p| p.installiert).collect();
-                if !sim.entfernen.is_empty() {
-                    sim.entfernen.extend(self.zusatz_entfernen.iter().cloned());
+                if gewaehlt.iter().any(|p| p.installiert) {
+                    sim.entfernen = self.zusatz_entfernen.clone();
                 }
             }
             Vorgang::Aktualisieren => {
@@ -416,7 +423,11 @@ impl Paketquelle for AttrappeQuelle {
     }
 
     async fn paket_nach_name(&self, name: &str) -> Result<Option<Paket>, Fehler> {
-        let dauer = self.innen.borrow().simulationsdauer;
+        let dauer = {
+            let mut i = self.innen.borrow_mut();
+            i.aufrufe.paket_nach_name += 1;
+            i.simulationsdauer
+        };
         self.schlafen(dauer).await;
         let i = self.innen.borrow();
         let mut treffer: Vec<&Paket> = i.katalog.iter().filter(|p| p.name == name).collect();
