@@ -13,7 +13,7 @@
 ## Hinweise
 
 - [ ] Keine privaten Pfade, Adressen, Namen oder Bildschirmfotos mit privatem Inhalt
-- [ ] Keine neue Abhängigkeit – oder Lizenz geprüft und in `LIZENZEN.md` ergänzt
+- [ ] Keine neue Abhängigkeit – oder Lizenz geprüft und in `COPYRIGHT` ergänzt
 - [ ] `CHANGELOG.md` ergänzt
 
-Freigabe und Merge entscheidet der Besitzer.
+Über Merge und Release entscheiden die Betreuer des Projekts.

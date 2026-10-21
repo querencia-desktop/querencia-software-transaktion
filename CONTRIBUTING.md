@@ -3,9 +3,6 @@
 Danke für das Interesse. Querencia ist in einer frühen Alpha-Phase; bitte
 rechne mit Rückfragen und langsamen Antworten.
 
-Jede Änderung durchläuft den unten beschriebenen Prüf- und Freigabeweg;
-pottrauschen (der „Besitzer“) nimmt sie ab.
-
 ## Fehler melden
 
 In der gemeinsamen Meldestelle:
@@ -13,41 +10,26 @@ In der gemeinsamen Meldestelle:
 
 **Sicherheitslücken nicht öffentlich melden:** siehe [SECURITY.md](SECURITY.md).
 
-## Arbeitsweise
+## Vor einem Pull Request
 
-### 1. Isolierte Prüfung
+- Integrationstests nur gegen das Prüfgerüst mit eigenem D-Bus
+  (`skripte/pruefgeruest-tests.sh`), nie gegen den Systembus, nie mit apt
+  oder sudo.
 
-- Nie in der laufenden Sitzung testen. GUI-Prüfungen laufen in einem eigenen
-  labwc ohne Bildschirm mit eigenem `HOME`, `XDG_RUNTIME_DIR` und
-  `XDG_CONFIG_HOME` (`skripte/`).
-- Vor jedem Pull Request, ohne Bildschirm:
-  `cargo fmt --all --check`, `cargo clippy --all-targets --locked -- -D warnings`,
-  `cargo test --locked`.
-- Bei Änderungen an der Oberfläche zusätzlich ein isolierter GUI-Lauf in
-  1024×768 und 1920×1080 mit Bildschirmfotos als Beleg.
-- Jede Behebung eines Fehlers bekommt einen Test, der vorher scheitert.
+Checkliste:
 
-### 2. Berichte
+- [ ] Build: `cargo build --locked`
+- [ ] Format: `cargo fmt --all --check`
+- [ ] Lint: `cargo clippy --all-targets --locked -- -D warnings`
+- [ ] Tests: `cargo test --locked`; jede Fehlerbehebung bekommt einen Test,
+      der vorher scheitert
+- [ ] Lizenzkopf bzw. Lizenzangabe: neue Dateien stehen unter der Lizenz des
+      Repos; Fremdmaterial mit Herkunft und Lizenz in `COPYRIGHT`
+- [ ] Keine Geheimnisse (Schlüssel, Passwörter, Tokens), keine privaten Pfade
+      oder Adressen
+- [ ] `CHANGELOG.md` ergänzt; Unfertiges ist als unfertig gekennzeichnet
 
-Jede abgeschlossene Aufgabe hinterlässt:
-
-- einen **Bericht** (was geändert wurde, was geprüft wurde, Zahlen, was *nicht*
-  geprüft wurde, Befunde für andere),
-- eine **Übergabe** (Zuständigkeit, Ordner, Prüfwerkzeuge, Integration und
-  Rückfall, Offenes, Fallen, Berichte),
-- Versionen als Git-Tags (`<programm>/<version>`), Berichte nennen Commits.
-
-Im Pull Request stehen Zusammenfassung und Prüfzahlen; Unfertiges wird als
-unfertig gekennzeichnet, in Code, Dokumentation und Changelog.
-
-### 3. Freigaben
-
-- Der Besitzer entscheidet über Merge und Release. Nichts gelangt ohne
-  ausdrückliche Freigabe in `main`, in ein Paket oder in eine Sitzung.
-- Eine Freigabe zählt nur, wenn sie direkt in dem Pull Request bzw. der Aufgabe
-  gegeben wird, die sie ausführt; eine weitergeleitete Freigabe gilt nicht.
-- Änderungen an laufenden Systemen (Sitzung, Autostart, `rc.xml`, Pakete)
-  brauchen immer einen eigenen, vorab beschriebenen Rückfall.
+Über Merge und Release entscheiden die Betreuer des Projekts.
 
 ## Regeln für den Code
 
@@ -61,10 +43,10 @@ unfertig gekennzeichnet, in Code, Dokumentation und Changelog.
 5. Symbole: nie 48×48 zusammen mit `scalable` installieren (GTK-4.22-Absturz,
    siehe Regel M in `querencia-packaging`).
 6. Neue Abhängigkeiten nur mit Begründung; die Lizenz muss zu GPL-3.0-or-later
-   passen und in `LIZENZEN.md` stehen. Nichtfreie Anteile (z. B. UnRAR) sind
+   passen und in `COPYRIGHT` stehen. Nichtfreie Anteile (z. B. UnRAR) sind
    ausgeschlossen.
 7. Quellcode und Texte ohne Fremdmaterial: keine Übernahme aus den Vorbild­
-   programmen (siehe README, „Vorbild und Abgrenzung“).
+   programmen (siehe README).
 
 ## Lizenz der Beiträge
 

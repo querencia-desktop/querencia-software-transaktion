@@ -1,8 +1,0 @@
-# Begründete Ausnahmen für ai-clean (ENTSCHEIDUNGEN Nr. 17): GitHub erwartet diese
-# Dateien im Root bzw. unter .github/, deshalb liegen sie nicht unter docs/.
-MARKE.md
-CONTRIBUTING.md
-SECURITY.md
-CHANGELOG.md
-.github/pull_request_template.md
-.github/ISSUE_TEMPLATE/*.md

@@ -1,8 +1,10 @@
 # Querencia Software – Transaktionen
 
 Transaktionen für Querencia Software: Zustandsmaschine, Fehlertexte und Protokoll zwischen Oberfläche und PackageKit (`qs_transaktion`) und das Kommandozeilenwerkzeug `qs-cli`. Teil von
-[Querencia Desktop](https://github.com/querencia-desktop/querencia) – einer
+[Querencia Desktop](https://querencialinux.org) – einer
 klassischen Desktopumgebung im GNOME-2-Stil für Wayland (labwc, Rust, GTK 4).
+Wird als Teil von Querencia Software ausgeliefert; Anleitung auf
+<https://querencialinux.org>.
 
 *English summary:* Transactions of Querencia Software: state machine, error texts and log between the user interface and PackageKit (`qs_transaktion`), plus the command-line tool `qs-cli`. Part of Querencia Desktop. Alpha software; documentation is in German.
 
@@ -120,8 +122,6 @@ skripte/pruefgeruest-tests.sh
 Das Skript startet je Backend einen privaten D-Bus mit SW-1s Prüfgerüst unter `/tmp/qs-pk-sw4`
 und führt die `#[ignore]`-Tests aus `qs-cli/tests/pruefgeruest.rs` aus. Es fasst nie den
 Systembus oder das apt-Backend an.
-
-Lizenz: GPL-3.0-or-later.
 
 ## Lizenz
 

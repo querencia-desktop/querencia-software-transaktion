@@ -51,8 +51,7 @@ nennt den Fork nicht „Querencia“.
 
 Dieses Projekt ist mit GNOME, MATE, Ubuntu, Canonical, Debian und den
 Autoren der Vorbildprogramme weder verbunden noch von ihnen unterstützt;
-Namen werden nur zur Beschreibung genannt (siehe README, „Vorbild und
-Abgrenzung“). Bei Forks (z. B. `querencia-files`) gilt zusätzlich das, was
+Namen werden nur zur Beschreibung genannt (siehe README). Bei Forks (z. B. `querencia-files`) gilt zusätzlich das, was
 der Upstream zu seinem Namen und Logo sagt; dessen Name und Logo werden nicht
 als eigene verwendet (siehe `UPSTREAM.md`).
 
@@ -62,4 +61,4 @@ Anfragen zur Verwendung von Name oder Logo bitte als Issue im Repo
 [`querencia-desktop/querencia`](https://github.com/querencia-desktop/querencia)
 oder an das GitHub-Konto des Projektbesitzers `pottrauschen`.
 
-Stand: 21.10.2026 (ENTSCHEIDUNGEN Nr. 24)
+Stand: 21.10.2026

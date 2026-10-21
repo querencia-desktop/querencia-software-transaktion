@@ -16,7 +16,7 @@ gibt es nicht.
 Bitte angeben: betroffene Version, Beschreibung, Schritte zum Nachstellen,
 mögliche Auswirkung. Schicke keine privaten Daten mit.
 
-Du bekommst innerhalb von 7 Tagen eine Antwort. Wir veröffentlichen eine
+Du bekommst in der Regel innerhalb von 7 Tagen eine Antwort. Wir veröffentlichen eine
 Korrektur und nennen auf Wunsch deinen Namen in den Release-Notizen. Üblich
 ist eine koordinierte Offenlegung (Standard: 90 Tage).
 
