@@ -1,2 +1,4 @@
 /target
 **/*.rs.bk
+# Ausgaben der isolierten Prüfung (nicht einchecken)
+/nachweis/
