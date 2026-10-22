@@ -1,4 +1,32 @@
-# Querencia Software – Transaktionen (SW-4)
+# Querencia Software – Transaktionen
+
+Transaktionen für Querencia Software: Zustandsmaschine, Fehlertexte und Protokoll zwischen Oberfläche und PackageKit (`qs_transaktion`) und das Kommandozeilenwerkzeug `qs-cli`. Teil von
+[Querencia Desktop](https://querencialinux.org) – einer
+klassischen Desktopumgebung im GNOME-2-Stil für Wayland (labwc, Rust, GTK 4).
+Wird als Teil von Querencia Software ausgeliefert; Anleitung auf
+<https://querencialinux.org>.
+
+*English summary:* Transactions of Querencia Software: state machine, error texts and log between the user interface and PackageKit (`qs_transaktion`), plus the command-line tool `qs-cli`. Part of Querencia Desktop. Alpha software; documentation is in German.
+
+> **Alpha.** Version 0.1.1 (Tags `transaktion/0.1.0`, `transaktion/0.1.1`). Keine Sicherheits- oder Datenverlustgarantie.
+
+## Zusammenspiel der Repos
+
+Die Bausteine von Querencia Software liegen in vier Repos nebeneinander und
+binden sich über Pfadabhängigkeiten ein. Zum Bauen und Prüfen alle vier in
+denselben Ordner klonen:
+
+```bash
+for r in querencia-software querencia-software-paketkit querencia-software-katalog querencia-software-transaktion; do
+  git clone https://github.com/querencia-desktop/$r.git
+done
+```
+
+Die Kennungen SW-1 bis SW-4 in Kommentaren bezeichnen die Teilprojekte:
+SW-1 `querencia-software-paketkit`, SW-2 `querencia-software-katalog`,
+SW-3 die Oberfläche in `querencia-software`, SW-4 `querencia-software-transaktion`.
+Die gemeinsame Schnittstelle beschreibt `docs/schnittstellen.md` in
+`querencia-software`.
 
 Teil von „Querencia Software“, dem grafischen Software-Installer für Querencia Desktop.
 Dieses Repository liefert die Schicht zwischen Oberfläche (SW-3) und PackageKit-Schicht (SW-1):
@@ -10,7 +38,7 @@ Dieses Repository liefert die Schicht zwischen Oberfläche (SW-3) und PackageKit
 
 Typen und Traits (`Auftrag`, `Zustand`, `TransaktionsGriff`, `Transaktionsmonitor`,
 `Paketquelle`) kommen aus `qs_typen` von SW-1 (`../querencia-software-paketkit/qs_typen`),
-verbindlich nach `~/projects/querencia-software/SCHNITTSTELLEN.md`.
+verbindlich nach `docs/schnittstellen.md` in `querencia-software`.
 
 ## Zustandsmaschine
 
@@ -95,4 +123,16 @@ Das Skript startet je Backend einen privaten D-Bus mit SW-1s Prüfgerüst unter 
 und führt die `#[ignore]`-Tests aus `qs-cli/tests/pruefgeruest.rs` aus. Es fasst nie den
 Systembus oder das apt-Backend an.
 
-Lizenz: GPL-3.0-or-later.
+## Lizenz
+
+GPL-3.0-or-later, siehe [LICENSE](LICENSE). Copyright 2026 Querencia Desktop
+contributors; Urheberhinweis in [COPYRIGHT](COPYRIGHT). Der Wechsel der Bausteine
+auf „MIT OR Apache-2.0“ ist geplant, aber noch nicht vollzogen.
+
+Name und Logo „Querencia“ sind keine freien Inhalte: [MARKE.md](MARKE.md).
+
+## Fehler melden
+
+Fehler, Wünsche und Fragen zu Querencia gehen an die gemeinsame Meldestelle:
+<https://github.com/querencia-desktop/querencia/issues/new/choose>.
+Sicherheitslücken bitte nicht öffentlich melden, siehe [SECURITY.md](SECURITY.md).

@@ -20,7 +20,7 @@
 //!   `glib::MainContext`), damit die Zustandsmaschine in Oberfläche, Tests und
 //!   Kommandozeile gleich läuft.
 //!
-//! Alles ist Ein-Thread-Code (`Rc`, `?Send`), wie in SCHNITTSTELLEN.md festgelegt:
+//! Alles ist Ein-Thread-Code (`Rc`, `?Send`), wie in schnittstellen.md festgelegt:
 //! `melden` wird immer auf dem Thread gerufen, der `starten` gerufen hat.
 //!
 //! ## Zustandsübergänge

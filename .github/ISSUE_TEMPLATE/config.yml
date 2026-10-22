@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Fehler melden, Wünsche, Fragen / Bugs, feature requests, questions
+    url: https://github.com/querencia-desktop/querencia/issues/new/choose
+    about: Alle Meldungen zu Querencia gehen an ein Repo. / All Querencia reports go to one repository.
+  - name: Sicherheitslücke melden / Report a security vulnerability
+    url: https://github.com/querencia-desktop/querencia-software-transaktion/security/advisories/new
+    about: Privat über GitHub, nicht als öffentliches Issue. / Privately via GitHub, not as a public issue.
