@@ -8,7 +8,7 @@ publish.workspace = true
 description = "Querencia Software: Transaktions-Zustandsmaschine, Fehlerabbildung, Wiederanbindung, Protokoll (SW-4)"
 
 [dependencies]
-# Gemeinsame Typen und Traits von SW-1 (verbindlich, SCHNITTSTELLEN.md).
+# Gemeinsame Typen und Traits von SW-1 (verbindlich, schnittstellen.md).
 qs_typen = { path = "../../querencia-software-paketkit/qs_typen" }
 async-trait = "0.1"
 futures = "0.3"

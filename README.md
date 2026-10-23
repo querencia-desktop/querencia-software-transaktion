@@ -25,7 +25,7 @@ done
 Die Kennungen SW-1 bis SW-4 in Kommentaren bezeichnen die Teilprojekte:
 SW-1 `querencia-software-paketkit`, SW-2 `querencia-software-katalog`,
 SW-3 die Oberfläche in `querencia-software`, SW-4 `querencia-software-transaktion`.
-Die gemeinsame Schnittstelle beschreibt `docs/SCHNITTSTELLEN.md` in
+Die gemeinsame Schnittstelle beschreibt `docs/schnittstellen.md` in
 `querencia-software`.
 
 Teil von „Querencia Software“, dem grafischen Software-Installer für Querencia Desktop.
@@ -38,7 +38,7 @@ Dieses Repository liefert die Schicht zwischen Oberfläche (SW-3) und PackageKit
 
 Typen und Traits (`Auftrag`, `Zustand`, `TransaktionsGriff`, `Transaktionsmonitor`,
 `Paketquelle`) kommen aus `qs_typen` von SW-1 (`../querencia-software-paketkit/qs_typen`),
-verbindlich nach `docs/SCHNITTSTELLEN.md` in `querencia-software`.
+verbindlich nach `docs/schnittstellen.md` in `querencia-software`.
 
 ## Zustandsmaschine
 

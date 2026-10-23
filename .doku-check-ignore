@@ -1,0 +1,9 @@
+# GitHub-Dateien, begründete Ausnahme vom Doku-Standard: SECURITY.md und die
+# PR-Vorlage unter .github/ stehen dort, wo GitHub sie erwartet; MARKE.md
+# steht wie LICENSE und COPYRIGHT im Root (Vorlage aller Querencia-Repos).
+SECURITY.md
+MARKE.md
+.github/
+# nachweis/ – Prüfnachweise der Entwicklungsumgebung; werden im
+# Veröffentlichungsklon herausgefiltert und sind keine Projektdoku.
+nachweis/
